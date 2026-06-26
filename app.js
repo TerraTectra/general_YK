@@ -177,17 +177,20 @@ function render() {
 }
 
 // Modal and Tabs Logic
-$('#openSteamModal').addEventListener('click', () => $('#steamModal').showModal());
-$('#openSteamModal2').addEventListener('click', () => $('#steamModal').showModal());
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  $(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
+  $(`#${tabName}Tab`).classList.add('active');
+}
+
+$('#openLoginBtn').addEventListener('click', () => { switchTab('login'); $('#steamModal').showModal(); });
+$('#openLoginBtn2').addEventListener('click', () => { switchTab('login'); $('#steamModal').showModal(); });
+$('#openRegisterBtn').addEventListener('click', () => { switchTab('register'); $('#steamModal').showModal(); });
 $('#closeModal').addEventListener('click', () => $('#steamModal').close());
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
-    $(`#${btn.dataset.tab}Tab`).classList.add('active');
-  });
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
 $('#loginForm').addEventListener('submit', (event) => {
