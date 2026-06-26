@@ -48,8 +48,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .nav { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-.nav-link { color: var(--muted); font-weight: 700; transition: all 0.2s; padding: 8px 16px; border-radius: 12px; }
-.nav-link:hover { color: var(--accent); background: rgba(92, 200, 255, 0.1); }
+.nav-link { color: var(--muted); font-weight: 700; transition: all 0.2s; padding: 8px 16px; border-radius: 12px; cursor: pointer; }
+.nav-link:hover, .nav-link.active { color: var(--accent); background: rgba(92, 200, 255, 0.1); }
 
 .hero {
   min-height: 70vh;

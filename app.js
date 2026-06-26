@@ -8,229 +8,238 @@ const ROLES = [
   { key: 'site_admin', title: 'Админ сайта', canEdit: true, canAssign: true }
 ];
 
-const DEFAULT_BLOCKS = {
-  decrees: {
-    title: 'Постановления',
-    body: `📵 Постановление №1 — «Рация УК»\nКаждый боец Ударного Взвода обязан во время пребывания на ОВО/ВО находиться в голосовом канале «Рация УК» в ЗКС либо на вспомогательной частоте «Рация УК» на комлинке. Команда «Связь» означает обязательное подключение к вспомогательной рации УК.\n\n💥 Постановление №2 — «Выдача штрафбата»\nПри многократных нарушениях со стороны бойца CT Ударный клон имеет право написать заявку о выдаче штрафбата. Заявку одобряет CO-SP, командующий состав формирования и ВК.\n\n🚨 Постановление №3 — «Посторонние лица в казарме CT»\nПри нахождении в казарме лиц без полномочий Ударный клон обязан уточнить разрешение и цель нахождения, при отказе покинуть казарму — вызвать гвардию.\n\n📜 Постановление №4 — «Норма докладов»\nSOL-SP — 5 докладов в неделю. OFC-SP — 3 доклада в неделю. DEP-SP — без нормы, работа по указанию CO-SP+.\n\n🎁 Постановление №5 — «Поощрение за работу»\nБоец может запросить поощрение в «#《🏅》поощрения» за проделанную работу.\n\n⚔️ Постановление №6 — «О нарушениях Устава бойцами УК»\nПри нарушении Устава бойцами УК разрешено выдавать только ДН. ДВ прочим бойцам УК выдают только OFC-SP+.\n\n🪶 Постановление №7 — «Актуальность таблицы»\nПри изменении звания, должности, позывного или формы боец отписывает в «#《📝》состав-sp».\n\n🖥️ Постановление №8 — «Подача рапортов»\nДоклады из «#《⚖️》наказания» дублируются в «#👮🏻│дв-скт-передачи».\n\n⛳ Постановление №9 — «Об увольнительных»\nУвольнение запрашивается в «#《⛳》увольнение-sp» и дублируется при заявке на отпуск.\n\n🚷 Постановление №10 — «О выговорах»\nЗа неисполнение постановлений, приказов и предписаний выдаются устные или письменные выговоры.\n\n👁️ Постановление №11 — «О должностных обязанностях»\nКуратор, Командир, Заместитель, Офицер, SP и Recruit SP действуют по своим правам и обязанностям.`
-  },
-  documents: {
-    title: 'Документы',
-    body: '• Система повышения и поощрений\n• Таблица состава\n• Нормативно-правовой блок ВАР\n• Регламент для рекрута\n• Этика Ударного клона'
-  },
-  hierarchy: {
-    title: 'Иерархия',
-    body: 'Куратор — без приписки. Командир УК — CO - SP | CT. Зам. Командира УК — DEP- SP | CT. Офицер УК — OFC- SP | CT. Солдат УК — SOL - SP | CT. Рекрут УК — R - SP | CT.'
-  },
-  medals: {
-    title: 'Медали Ударного корпуса',
-    body: 'Высшая преданность делу, Щит Отечества, За мужество и честь, Ударный клон месяца, Оперативная служба, Верность долгу, Победитель преступности, За отличие в службе, Верность Уставу, Первоклассник, Защитник правопорядка.'
-  },
-  forms: {
-    title: 'Формы',
-    body: 'SP: DC-15LE, Westar-M5, DP-23, DC-17, Dual DC-17, Clone Shield, термальная граната, крюк-кошка, парализатор, наручники, броня 300. MED-SP: Westar-M5, DC-17, Bacta Injector, Bacta Grenade, броня 125. PR-SP: DC-19LE, Westar-M5, DP-23, Dual DC-17, JT-12, броня 300.'
-  }
-};
-
-const STORAGE_KEY = 'ror_sp_portal_db_v1';
+const STORAGE_KEY = 'ror_sp_portal_db_v1.1';
 const $ = (selector) => document.querySelector(selector);
 const roleByKey = (key) => ROLES.find((role) => role.key === key) || ROLES[0];
 
-function createDatabase() {
-  return {
-    currentUserId: null,
-    users: [
-      { id: 'owner', steamId: '76561198000000001', nickname: 'Владелец сайта', callsign: 'Site Admin', role: 'site_admin', password: 'admin' }
-    ],
-    blocks: DEFAULT_BLOCKS
-  };
-}
+// База данных
+let db = loadDb();
+let currentView = 'home';
 
 function loadDb() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return createDatabase();
-  try {
-    const db = JSON.parse(raw);
-    db.blocks = { ...DEFAULT_BLOCKS, ...db.blocks };
-    return db;
-  } catch {
-    return createDatabase();
-  }
+  if (!raw) return createInitialDb();
+  return JSON.parse(raw);
+}
+
+function createInitialDb() {
+  return {
+    currentUserId: null,
+    users: [
+      { id: 'admin-id', steamId: '76561198000000001', nickname: 'Владелец сайта', callsign: 'Site Admin', role: 'site_admin', password: 'admin' }
+    ],
+    blocks: {
+      decrees: { title: 'Постановления', body: 'Постановления УК...' }, // Здесь будет полный текст
+      documents: { title: 'Документы', body: '• Система повышения\n• Таблица состава' },
+      hierarchy: { title: 'Иерархия', body: 'Командир УК — CO-SP...' },
+      medals: { title: 'Медали', body: 'Высшая преданность делу...' },
+      forms: { title: 'Формы', body: 'SP: DC-15LE, Westar-M5...' }
+    }
+  };
 }
 
 function saveDb() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
 
-let db = loadDb();
-
 function currentUser() {
-  return db.users.find((user) => user.id === db.currentUserId) || null;
+  return db.users.find(u => u.id === db.currentUserId) || null;
 }
 
-function permissions() {
-  const user = currentUser();
-  return user ? roleByKey(user.role) : { canEdit: false, canAssign: false, title: 'Гость' };
-}
-
-function registerUser({ steamId, nickname, callsign, password }) {
-  const existing = db.users.find((user) => user.steamId === steamId);
-  if (existing) {
-    alert('Пользователь с таким Steam ID уже зарегистрирован. Пожалуйста, войдите.');
-    return false;
-  }
-  const user = { id: crypto.randomUUID(), steamId, nickname, callsign, role: 'recruit', password };
-  db.users.push(user);
-  db.currentUserId = user.id;
-  saveDb();
+// Навигация
+function switchView(view) {
+  currentView = view;
   render();
-  return true;
+  window.scrollTo(0, 0);
 }
 
-function loginUser({ steamId, password }) {
-  const user = db.users.find((u) => u.steamId === steamId);
-  if (!user) {
-    alert('Пользователь не найден. Пожалуйста, зарегистрируйтесь.');
-    return false;
-  }
-  if (user.password !== password) {
-    alert('Неверный пароль.');
-    return false;
-  }
-  db.currentUserId = user.id;
-  saveDb();
-  render();
-  return true;
-}
-
-function renderProfile() {
+// Рендеринг компонентов
+function renderNav() {
   const user = currentUser();
-  const card = $('#profileCard');
-  const lead = $('#heroLead');
+  const nav = $('#mainNav');
+  let html = `<a href="javascript:void(0)" class="nav-link ${currentView === 'home' ? 'active' : ''}" onclick="switchView('home')">Главная</a>`;
+  html += `<a href="javascript:void(0)" class="nav-link ${currentView === 'decrees' ? 'active' : ''}" onclick="switchView('decrees')">Постановления</a>`;
+  
+  if (user) {
+    html += `<a href="javascript:void(0)" class="nav-link ${currentView === 'database' ? 'active' : ''}" onclick="switchView('database')">База</a>`;
+    const role = roleByKey(user.role);
+    if (role.canAssign || role.canEdit) {
+      html += `<a href="javascript:void(0)" class="nav-link ${currentView === 'command' ? 'active' : ''}" onclick="switchView('command')">Кабинет КМД</a>`;
+    }
+  }
+  
+  nav.innerHTML = html;
   $('#logoutBtn').hidden = !user;
-  document.querySelectorAll('.auth-only').forEach((node) => node.hidden = !user);
-  document.querySelectorAll('.locked-only').forEach((node) => node.hidden = Boolean(user));
+}
 
-  if (!user) {
-    card.innerHTML = '<span class="status-dot"></span><p class="eyebrow">Статус</p><h2>Гость</h2><p>Доступ: только раздел «Путь новичка».</p>';
-    lead.textContent = 'Для неавторизованного бойца открыт только путь новичка и общие постановления. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.';
-    return;
+const VIEWS = {
+  home: () => {
+    const user = currentUser();
+    const role = user ? roleByKey(user.role) : null;
+    return `
+      <section class="hero shell">
+        <div class="hero-copy">
+          <p class="eyebrow">Закрытый портал · CT Legion</p>
+          <h1>Рота ударных клонов</h1>
+          <p class="lead">${user ? `Добро пожаловать, ${user.nickname}. Ваша роль: <b>${role.title}</b>.` : 'Для неавторизованного бойца открыт только путь новичка. Зарегистрируйся через Steam, чтобы получить доступ.'}</p>
+          <div class="hero-actions">
+            ${user ? `<button class="btn primary" onclick="switchView('database')">Личный кабинет</button>` : `
+              <button class="btn primary" id="openLoginBtn">Войти в профиль</button>
+              <button class="btn secondary" id="openRegisterBtn">Регистрация</button>
+            `}
+          </div>
+        </div>
+        <aside class="status-card">
+          <span class="status-dot ${user ? 'online' : ''}"></span>
+          <p class="eyebrow">Статус</p>
+          <h2>${user ? user.nickname : 'Гость'}</h2>
+          <p>${user ? user.callsign : 'Доступ ограничен'}</p>
+        </aside>
+      </section>
+      <section class="shell section">
+        <div class="section-heading"><h2>Путь новичка</h2></div>
+        <div class="path-grid">
+          <article class="card step"><span>01</span><h3>Познакомься</h3><p>Ударный взвод CT поддерживает порядок на сервере.</p></article>
+          <article class="card step"><span>02</span><h3>Рация</h3><p>Частота: УК|CT. Пароль: 1687.</p></article>
+          <article class="card step"><span>03</span><h3>Регистрация</h3><p>Используй Steam ID для создания профиля.</p></article>
+        </div>
+      </section>`;
+  },
+  decrees: () => `
+    <section class="shell section">
+      <div class="section-heading"><h2>Постановления Ударного взвода</h2></div>
+      <div class="decree-list">
+        <article class="decree"><h3>📵 №1 — «Рация УК»</h3><p>Пароль: 1687. Частота: УК|CT.</p></article>
+        <article class="decree"><h3>💥 №2 — «Штрафбат»</h3><p>Выдается при многократных нарушениях.</p></article>
+        <article class="decree"><h3>📜 №4 — «Норма докладов»</h3><p>SOL-SP: 5/нед. OFC-SP: 3/нед.</p></article>
+      </div>
+    </section>`,
+  database: () => {
+    const user = currentUser();
+    if (!user) return VIEWS.home();
+    return `
+      <section class="shell section">
+        <div class="section-heading"><h2>Личное дело</h2></div>
+        <div class="db-grid">
+          <article class="card"><h3>Ваши данные</h3><dl>
+            <dt>Steam ID</dt><dd>${user.steamId}</dd>
+            <dt>Позывной</dt><dd>${user.callsign}</dd>
+            <dt>Роль</dt><dd>${roleByKey(user.role).title}</dd>
+          </dl></article>
+          <article class="card"><h3>Документы</h3><p>${db.blocks.documents.body.replaceAll('\n', '<br>')}</p></article>
+        </div>
+      </section>`;
+  },
+  command: () => {
+    const user = currentUser();
+    const role = user ? roleByKey(user.role) : null;
+    if (!role || (!role.canEdit && !role.canAssign)) return VIEWS.home();
+    return `
+      <section class="shell section">
+        <div class="section-heading"><h2>Кабинет КМД</h2></div>
+        <div class="command-grid">
+          <article class="card"><h3>Управление составом</h3><div id="usersList"></div></article>
+          <article class="card"><h3>Редактор блоков</h3><div id="editorUI"></div></article>
+        </div>
+      </section>`;
   }
+};
 
-  const role = roleByKey(user.role);
-  lead.textContent = `Профиль ${user.nickname} подключён. Роль: ${role.title}. Доступ выдан согласно иерархии портала.`;
-  card.innerHTML = `<span class="status-dot online"></span><p class="eyebrow">Авторизован</p><h2>${user.nickname}</h2><p>${user.callsign}</p><p><b>${role.title}</b></p>`;
+function render() {
+  renderNav();
+  const app = $('#appContent');
+  app.innerHTML = VIEWS[currentView] ? VIEWS[currentView]() : VIEWS.home();
+  
+  // Привязка событий после рендеринга
+  if (currentView === 'home' && !currentUser()) {
+    $('#openLoginBtn').onclick = () => { switchTab('login'); $('#steamModal').showModal(); };
+    $('#openRegisterBtn').onclick = () => { switchTab('register'); $('#steamModal').showModal(); };
+  }
+  
+  if (currentView === 'command') {
+    renderUsersList();
+  }
 }
 
-function renderDatabase() {
-  const user = currentUser();
-  if (!user) return;
-  const role = roleByKey(user.role);
-  $('#currentUserData').innerHTML = `
-    <dt>Steam ID</dt><dd>${user.steamId}</dd>
-    <dt>Ник</dt><dd>${user.nickname}</dd>
-    <dt>Позывной</dt><dd>${user.callsign}</dd>
-    <dt>Роль</dt><dd>${role.title}</dd>
-    <dt>Права</dt><dd>${role.canEdit ? 'Редактирование блоков' : 'Только просмотр'}${role.canAssign ? ' + выдача ролей' : ''}</dd>`;
-  $('#roleList').innerHTML = ROLES.map((item) => `<li><b>${item.title}</b> — ${item.canEdit ? 'может редактировать' : 'просмотр'}${item.canAssign ? ', может выдавать роли' : ''}</li>`).join('');
-}
-
-function renderEditor() {
-  const canEdit = permissions().canEdit;
-  const select = $('#sectionSelect');
-  const editor = $('#sectionEditor');
-  $('#editPermission').textContent = canEdit ? 'Разрешено' : 'Только просмотр';
-  select.innerHTML = Object.entries(db.blocks).map(([key, block]) => `<option value="${key}">${block.title}</option>`).join('');
-  const selected = select.value || Object.keys(db.blocks)[0];
-  editor.value = db.blocks[selected].body;
-  editor.disabled = !canEdit;
-  $('#saveSection').disabled = !canEdit;
-}
-
-function renderUsers() {
-  const canAssign = permissions().canAssign;
-  $('#rolePermission').textContent = canAssign ? 'Разрешено' : 'Нет прав';
-  $('#usersList').innerHTML = db.users.map((user) => `
+function renderUsersList() {
+  const container = $('#usersList');
+  if (!container) return;
+  const canAssign = roleByKey(currentUser().role).canAssign;
+  container.innerHTML = db.users.map(u => `
     <div class="user-row">
-      <div><b>${user.nickname}</b><small>${user.callsign} · ${user.steamId}</small></div>
-      <select data-user-id="${user.id}" ${canAssign ? '' : 'disabled'}>
-        ${ROLES.map((role) => `<option value="${role.key}" ${role.key === user.role ? 'selected' : ''}>${role.title}</option>`).join('')}
+      <div><b>${u.nickname}</b><br><small>${u.steamId}</small></div>
+      <select onchange="updateUserRole('${u.id}', this.value)" ${canAssign ? '' : 'disabled'}>
+        ${ROLES.map(r => `<option value="${r.key}" ${u.role === r.key ? 'selected' : ''}>${r.title}</option>`).join('')}
       </select>
     </div>`).join('');
 }
 
-function renderBlocks() {
-  $('#contentBlocks').innerHTML = `
-    <div class="section-heading"><p class="eyebrow">Закрытые материалы</p><h2>Содержимое портала</h2><p>Эти блоки можно менять через кабинет КМД при наличии прав.</p></div>
-    <div class="content-grid">
-      ${Object.values(db.blocks).map((block) => `<article class="card content-card"><h3>${block.title}</h3><p>${block.body.replaceAll('\n', '</p><p>')}</p></article>`).join('')}
-    </div>`;
-}
-
-function render() {
-  renderProfile();
-  if (currentUser()) {
-    renderDatabase();
-    renderEditor();
-    renderUsers();
-    renderBlocks();
+function updateUserRole(userId, newRole) {
+  const user = db.users.find(u => u.id === userId);
+  if (user) {
+    user.role = newRole;
+    saveDb();
+    alert('Роль обновлена');
   }
 }
 
-// Modal and Tabs Logic
-function switchTab(tabName) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  $(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
-  $(`#${tabName}Tab`).classList.add('active');
+// Auth logic
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === `${tab}Tab`));
 }
 
-$('#openLoginBtn').addEventListener('click', () => { switchTab('login'); $('#steamModal').showModal(); });
-$('#openLoginBtn2').addEventListener('click', () => { switchTab('login'); $('#steamModal').showModal(); });
-$('#openRegisterBtn').addEventListener('click', () => { switchTab('register'); $('#steamModal').showModal(); });
-$('#closeModal').addEventListener('click', () => $('#steamModal').close());
+document.querySelectorAll('.tab-btn').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+$('#closeModal').onclick = () => $('#steamModal').close();
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
-});
-
-$('#loginForm').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  if (loginUser({ steamId: form.get('steamId').trim(), password: form.get('password') })) {
+$('#loginForm').onsubmit = (e) => {
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const user = db.users.find(u => u.steamId === data.get('steamId') && u.password === data.get('password'));
+  if (user) {
+    db.currentUserId = user.id;
+    saveDb();
     $('#steamModal').close();
-    event.currentTarget.reset();
+    switchView('home');
+  } else {
+    alert('Неверные данные');
   }
-});
+};
 
-$('#steamForm').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  if (registerUser({ 
-    steamId: form.get('steamId').trim(), 
-    nickname: form.get('nickname').trim(), 
-    callsign: form.get('callsign').trim(),
-    password: form.get('password')
-  })) {
-    $('#steamModal').close();
-    event.currentTarget.reset();
+$('#steamForm').onsubmit = (e) => {
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const steamId = data.get('steamId');
+  if (db.users.find(u => u.steamId === steamId)) return alert('Steam ID занят');
+  
+  const newUser = {
+    id: Date.now().toString(),
+    steamId,
+    nickname: data.get('nickname'),
+    callsign: data.get('callsign'),
+    password: data.get('password'),
+    role: 'recruit'
+  };
+  db.users.push(newUser);
+  db.currentUserId = newUser.id;
+  saveDb();
+  $('#steamModal').close();
+  switchView('home');
+};
+
+$('#logoutBtn').onclick = () => {
+  db.currentUserId = null;
+  saveDb();
+  switchView('home');
+};
+
+$('#resetDemo').onclick = () => {
+  if (confirm('Удалить все данные?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    db = createInitialDb();
+    switchView('home');
   }
-});
+};
 
-$('#logoutBtn').addEventListener('click', () => { db.currentUserId = null; saveDb(); render(); });
-$('#resetDemo').addEventListener('click', () => { if(confirm('Сбросить все данные?')) { localStorage.removeItem(STORAGE_KEY); db = createDatabase(); render(); } });
-$('#sectionSelect').addEventListener('change', (event) => { $('#sectionEditor').value = db.blocks[event.target.value].body; });
-$('#saveSection').addEventListener('click', () => {
-  if (!permissions().canEdit) return;
-  db.blocks[$('#sectionSelect').value].body = $('#sectionEditor').value;
-  saveDb();
-  renderBlocks();
-});
-$('#usersList').addEventListener('change', (event) => {
-  if (!permissions().canAssign || !event.target.matches('select[data-user-id]')) return;
-  const user = db.users.find((item) => item.id === event.target.dataset.userId);
-  user.role = event.target.value;
-  saveDb();
-  render();
-});
-
+// Start
 render();
