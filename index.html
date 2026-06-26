@@ -29,7 +29,7 @@
         <h1>Рота ударных клонов</h1>
         <p class="lead" id="heroLead">Для неавторизованного бойца открыт только путь новичка и общие постановления. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.</p>
         <div class="hero-actions">
-          <button class="btn primary" id="openSteamModal" type="button">Зарегистрироваться через Steam</button>
+          <button class="btn primary" id="openSteamModal" type="button">Войти / Зарегистрироваться</button>
           <a class="btn secondary" href="#recruit-path">Сначала изучить путь новичка</a>
         </div>
       </div>
@@ -77,11 +77,13 @@
       </div>
     </section>
 
-    <section class="locked-only shell section lock-screen" id="lockedNotice">
-      <div class="lock-icon">🔒</div>
-      <h2>Остальная информация закрыта</h2>
-      <p>Документы, формы, кабинет КМД и выдача ролей откроются после регистрации и назначения роли.</p>
-      <button class="btn primary" id="openSteamModal2" type="button">Войти через Steam</button>
+    <section class="locked-only shell section" id="lockedNotice">
+      <div class="lock-screen">
+        <div class="lock-icon">🔒</div>
+        <h2>Остальная информация закрыта</h2>
+        <p>Документы, формы, кабинет КМД и выдача ролей откроются после авторизации.</p>
+        <button class="btn primary" id="openSteamModal2" type="button">Войти через Steam</button>
+      </div>
     </section>
 
     <div class="auth-only" id="authorizedContent">
@@ -125,16 +127,37 @@
   </main>
 
   <dialog class="steam-modal" id="steamModal">
-    <form method="dialog" class="modal-card" id="steamForm">
-      <button class="close" value="cancel" aria-label="Закрыть">×</button>
-      <p class="eyebrow">Steam Login</p>
-      <h2>Регистрация через Steam</h2>
-      <p>Прототип: портал подтягивает введённые Steam-поля и сохраняет их в локальную БД браузера.</p>
-      <label>Steam ID<input name="steamId" placeholder="76561198000000000" required></label>
-      <label>Ник Steam<input name="nickname" placeholder="Griffon / Black / Masalini" required></label>
-      <label>Discord / позывной<input name="callsign" placeholder="CT | R - SP | Позывной" required></label>
-      <button class="btn primary" value="default" type="submit">Создать профиль</button>
-    </form>
+    <div class="modal-card">
+      <button class="close" id="closeModal" aria-label="Закрыть">×</button>
+      <div class="modal-tabs">
+        <button class="tab-btn active" data-tab="login">Вход</button>
+        <button class="tab-btn" data-tab="register">Регистрация</button>
+      </div>
+      
+      <div class="tab-content active" id="loginTab">
+        <form id="loginForm">
+          <p class="eyebrow">Steam Auth</p>
+          <h2>Вход по Steam ID</h2>
+          <p>Введите ваш Steam ID для входа в существующий профиль.</p>
+          <label>Steam ID<input name="steamId" placeholder="76561198000000000" required></label>
+          <label>Пароль<input type="password" name="password" placeholder="••••••••" required></label>
+          <button class="btn primary" type="submit">Войти</button>
+        </form>
+      </div>
+
+      <div class="tab-content" id="registerTab">
+        <form id="steamForm">
+          <p class="eyebrow">Steam Login</p>
+          <h2>Регистрация профиля</h2>
+          <p>Данные будут сохранены в локальную базу вашего браузера.</p>
+          <label>Steam ID<input name="steamId" placeholder="76561198000000000" required></label>
+          <label>Ник Steam<input name="nickname" placeholder="Griffon / Black / Masalini" required></label>
+          <label>Discord / позывной<input name="callsign" placeholder="CT | R - SP | Позывной" required></label>
+          <label>Пароль<input type="password" name="password" placeholder="••••••••" required></label>
+          <button class="btn primary" type="submit">Создать профиль</button>
+        </form>
+      </div>
+    </div>
   </dialog>
 
   <footer class="shell footer"><p>CT Legion · Rise of Republic · Ударный взвод</p><button class="link-button" id="resetDemo" type="button">Сбросить демо-БД</button></footer>

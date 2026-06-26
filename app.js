@@ -39,7 +39,7 @@ function createDatabase() {
   return {
     currentUserId: null,
     users: [
-      { id: 'owner', steamId: '76561198000000001', nickname: 'Владелец сайта', callsign: 'Site Admin', role: 'site_admin' }
+      { id: 'owner', steamId: '76561198000000001', nickname: 'Владелец сайта', callsign: 'Site Admin', role: 'site_admin', password: 'admin' }
     ],
     blocks: DEFAULT_BLOCKS
   };
@@ -72,19 +72,34 @@ function permissions() {
   return user ? roleByKey(user.role) : { canEdit: false, canAssign: false, title: 'Гость' };
 }
 
-function registerUser({ steamId, nickname, callsign }) {
+function registerUser({ steamId, nickname, callsign, password }) {
   const existing = db.users.find((user) => user.steamId === steamId);
   if (existing) {
-    existing.nickname = nickname;
-    existing.callsign = callsign;
-    db.currentUserId = existing.id;
-  } else {
-    const user = { id: crypto.randomUUID(), steamId, nickname, callsign, role: 'recruit' };
-    db.users.push(user);
-    db.currentUserId = user.id;
+    alert('Пользователь с таким Steam ID уже зарегистрирован. Пожалуйста, войдите.');
+    return false;
   }
+  const user = { id: crypto.randomUUID(), steamId, nickname, callsign, role: 'recruit', password };
+  db.users.push(user);
+  db.currentUserId = user.id;
   saveDb();
   render();
+  return true;
+}
+
+function loginUser({ steamId, password }) {
+  const user = db.users.find((u) => u.steamId === steamId);
+  if (!user) {
+    alert('Пользователь не найден. Пожалуйста, зарегистрируйтесь.');
+    return false;
+  }
+  if (user.password !== password) {
+    alert('Неверный пароль.');
+    return false;
+  }
+  db.currentUserId = user.id;
+  saveDb();
+  render();
+  return true;
 }
 
 function renderProfile() {
@@ -97,7 +112,7 @@ function renderProfile() {
 
   if (!user) {
     card.innerHTML = '<span class="status-dot"></span><p class="eyebrow">Статус</p><h2>Гость</h2><p>Доступ: только раздел «Путь новичка».</p>';
-    lead.textContent = 'Для неавторизованного бойца открыт только путь новичка. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.';
+    lead.textContent = 'Для неавторизованного бойца открыт только путь новичка и общие постановления. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.';
     return;
   }
 
@@ -161,16 +176,45 @@ function render() {
   }
 }
 
+// Modal and Tabs Logic
 $('#openSteamModal').addEventListener('click', () => $('#steamModal').showModal());
 $('#openSteamModal2').addEventListener('click', () => $('#steamModal').showModal());
+$('#closeModal').addEventListener('click', () => $('#steamModal').close());
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    $(`#${btn.dataset.tab}Tab`).classList.add('active');
+  });
+});
+
+$('#loginForm').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  if (loginUser({ steamId: form.get('steamId').trim(), password: form.get('password') })) {
+    $('#steamModal').close();
+    event.currentTarget.reset();
+  }
+});
+
 $('#steamForm').addEventListener('submit', (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  registerUser({ steamId: form.get('steamId').trim(), nickname: form.get('nickname').trim(), callsign: form.get('callsign').trim() });
-  $('#steamModal').close();
+  if (registerUser({ 
+    steamId: form.get('steamId').trim(), 
+    nickname: form.get('nickname').trim(), 
+    callsign: form.get('callsign').trim(),
+    password: form.get('password')
+  })) {
+    $('#steamModal').close();
+    event.currentTarget.reset();
+  }
 });
+
 $('#logoutBtn').addEventListener('click', () => { db.currentUserId = null; saveDb(); render(); });
-$('#resetDemo').addEventListener('click', () => { localStorage.removeItem(STORAGE_KEY); db = createDatabase(); render(); });
+$('#resetDemo').addEventListener('click', () => { if(confirm('Сбросить все данные?')) { localStorage.removeItem(STORAGE_KEY); db = createDatabase(); render(); } });
 $('#sectionSelect').addEventListener('change', (event) => { $('#sectionEditor').value = db.blocks[event.target.value].body; });
 $('#saveSection').addEventListener('click', () => {
   if (!permissions().canEdit) return;
