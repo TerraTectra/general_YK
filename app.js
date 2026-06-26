@@ -1,10 +1,10 @@
 const ROLES = [
-  { key: 'recruit', title: 'Рекрут', canEdit: false, canAssign: false },
-  { key: 'soldier', title: 'Солдат УК', canEdit: false, canAssign: false },
-  { key: 'officer', title: 'Офицер УК', canEdit: false, canAssign: false },
-  { key: 'deputy', title: 'Зам. Командира УК', canEdit: true, canAssign: true },
-  { key: 'commander', title: 'Командир УК / КМД', canEdit: true, canAssign: true },
-  { key: 'curator', title: 'Куратор', canEdit: true, canAssign: true },
+  { key: 'recruit', title: 'Recruit SP', canEdit: false, canAssign: false },
+  { key: 'soldier', title: 'SP (Ударный клон)', canEdit: false, canAssign: false },
+  { key: 'officer', title: 'Officer SP', canEdit: false, canAssign: false },
+  { key: 'deputy', title: 'Deputy Commander SP', canEdit: true, canAssign: true },
+  { key: 'commander', title: 'Commander SP', canEdit: true, canAssign: true },
+  { key: 'curator', title: 'Curator SP', canEdit: true, canAssign: true },
   { key: 'site_admin', title: 'Админ сайта', canEdit: true, canAssign: true }
 ];
 
@@ -15,7 +15,7 @@ const DEFAULT_BLOCKS = {
   },
   documents: {
     title: 'Документы',
-    body: 'Система повышения и поощрений, таблица состава, нормативно-правовой блок ВАР, регламент для рекрута Ударного взвода и этика Ударного клона хранятся как обязательная база для бойцов. В боевой версии их можно хранить в БД и редактировать через кабинет КМД.'
+    body: '• Система повышения и поощрений\n• Таблица состава\n• Нормативно-правовой блок ВАР\n• Регламент для рекрута\n• Этика Ударного клона'
   },
   hierarchy: {
     title: 'Иерархия',
