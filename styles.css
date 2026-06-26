@@ -1,3 +1,4 @@
+/* Conflict resolution: styles target the gated portal layout in index.html. */
 :root {
   --bg: #050814;
   --card: rgba(17, 26, 54, 0.86);
