@@ -8,7 +8,7 @@ const ROLES = [
   { key: 'site_admin', title: 'Админ сайта', canEdit: true, canAssign: true }
 ];
 
-const STORAGE_KEY = 'ror_sp_portal_db_v1.1.1';
+const STORAGE_KEY = 'ror_sp_portal_db_v1.1.2';
 const $ = (selector) => document.querySelector(selector);
 const roleByKey = (key) => ROLES.find((role) => role.key === key) || ROLES[0];
 
@@ -24,6 +24,14 @@ const DECREES_DATA = [
   { id: 9, title: '⛳ Постановление №9 — «Об увольнительных»', body: 'Каждый боец имеет право запросить увольнение в канале «#《⛳》увольнение-sp» в соответствии с 5 Директивой CT.' },
   { id: 10, title: '🚷 Постановление №10 — «О выговорах»', body: 'За неисполнение постановлений, приказов и предписаний каждый боец подлежит санкциям: устным и письменным выговорам.' },
   { id: 11, title: '👁️ Постановление №11 — «О должностных обязанностях»', body: 'Регламентирует права и обязанности Куратора, Командира, Заместителя, Офицеров и Рядового состава Ударного Взвода.' }
+];
+
+const EXTERNAL_LINKS = [
+  { title: 'Система повышения и поощрений', url: 'https://docs.google.com/document/d/1umA90mpK-eIXt5lcNxu-hBBuBj5w2y2gZWUXQyxbZFc/edit?tab=t.0#heading=h.kyvpmn4y9bti' },
+  { title: 'Таблица состава УК', url: 'https://docs.google.com/spreadsheets/d/1yFM2jvgQBz7SfKeudbbXErFdQx9J6ZhAxbVudufKg0U/edit?gid=1466119767#gid=1466119767' },
+  { title: 'Нормативно-правовой блок ВАР', url: 'https://docs.google.com/document/d/14hcJq_eFh6qtyCFonZB8r8nvVH9Ys0JRHErcJKK1n90/edit?tab=t.0' },
+  { title: 'Регламент для рекрута', url: 'https://docs.google.com/document/d/1kZtTgY8MH0WU2NWqVLicqX0P0TTM0-AYfHYM4T_UUFA/edit?tab=t.0' },
+  { title: 'Этика Ударного клона', url: 'https://docs.google.com/document/d/1ieO8_mrhIa9Gsoa-7seIpERf56HTAsx-o-B_pA5u5as/edit?tab=t.0' }
 ];
 
 let db = loadDb();
@@ -42,7 +50,6 @@ function createInitialDb() {
       { id: 'admin-id', steamId: '76561198000000001', nickname: 'Владелец сайта', callsign: 'Site Admin', role: 'site_admin', password: 'admin' }
     ],
     blocks: {
-      documents: { title: 'Документы', body: '• Система повышения и поощрений\n• Таблица состава\n• Нормативно-правовой блок ВАР\n• Регламент для рекрута\n• Этика Ударного клона' },
       hierarchy: { title: 'Иерархия', body: 'Куратор — без приписки\nКомандир УК — CO-SP | CT\nЗам. Командира УК — DEP-SP | CT\nОфицер УК — OFC-SP | CT\nСолдат УК — SOL-SP | CT\nРекрут УК — R-SP | CT' },
       medals: { title: 'Медали', body: 'Высшая преданность делу, Щит Отечества, За мужество и честь, Ударный клон месяца, Оперативная служба, Верность долгу, Победитель преступности, За отличие в службе, Верность Уставу, Первоклассник, Защитник правопорядка.' },
       forms: { title: 'Формы', body: 'SP: DC-15LE, Westar-M5, DP-23, DC-17, Dual DC-17, Clone Shield, термальная граната, крюк-кошка, парализатор, наручники, броня 300.\nMED-SP: Westar-M5, DC-17, Bacta Injector, Bacta Grenade, броня 125.\nPR-SP: DC-19LE, Westar-M5, DP-23, Dual DC-17, JT-12, броня 300.' }
@@ -73,7 +80,7 @@ function renderNav() {
   if (user) {
     html += `<a href="javascript:void(0)" class="nav-link ${currentView === 'database' ? 'active' : ''}" onclick="switchView('database')">База</a>`;
     const role = roleByKey(user.role);
-    if (role.canAssign || role.canEdit) {
+    if (role.canAssign) {
       html += `<a href="javascript:void(0)" class="nav-link ${currentView === 'command' ? 'active' : ''}" onclick="switchView('command')">Кабинет КМД</a>`;
     }
   }
@@ -91,9 +98,9 @@ const VIEWS = {
         <div class="hero-copy">
           <p class="eyebrow">Закрытый портал · CT Legion</p>
           <h1>Рота ударных клонов</h1>
-          <p class="lead">${user ? `Профиль <b>${user.nickname}</b> подключён. Роль: <b>${role.title}</b>. Доступ выдан согласно иерархии портала.` : 'Для неавторизованного бойца открыт только путь новичка и общие постановления. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.'}</p>
+          <p class="lead">${user ? `Профиль <b>${user.nickname}</b> подключён. Роль: <b>${role.title}</b>.` : 'Для неавторизованного бойца открыт только путь новичка и общие постановления. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.'}</p>
           <div class="hero-actions">
-            ${user ? `<button class="btn primary" onclick="switchView('database')">Личный кабинет</button>` : `
+            ${user ? `<button class="btn primary" onclick="switchView('database')">Перейти в Базу</button>` : `
               <button class="btn primary" id="openLoginBtn">Войти в профиль</button>
               <button class="btn secondary" id="openRegisterBtn">Регистрация</button>
             `}
@@ -103,7 +110,7 @@ const VIEWS = {
           <span class="status-dot ${user ? 'online' : ''}"></span>
           <p class="eyebrow">Статус</p>
           <h2>${user ? user.nickname : 'Гость'}</h2>
-          <p>${user ? user.callsign : 'Доступ: только раздел «Путь новичка»'}</p>
+          <p>${user ? user.callsign : 'Доступ ограничен'}</p>
           ${user ? `<p><b>${role.title}</b></p>` : ''}
         </aside>
       </section>
@@ -111,7 +118,6 @@ const VIEWS = {
         <div class="section-heading">
           <p class="eyebrow">Открытый раздел</p>
           <h2>Путь новичка</h2>
-          <p>Этот раздел объясняет, куда нажимать, что изучать и как войти в службу.</p>
         </div>
         <div class="path-grid">
           <article class="card step"><span>01</span><h3>Познакомься с взводом</h3><p>Ударный взвод CT поддерживает порядок, дисциплину и безопасность корпуса на сервере Rise of Republic.</p></article>
@@ -127,6 +133,9 @@ const VIEWS = {
         <p class="eyebrow">Правила и нормы</p>
         <h2>Постановления Ударного взвода</h2>
         <p>Обязательны к выполнению каждым бойцом Ударного Взвода.</p>
+        <div style="margin-top: 20px;">
+          <a href="https://sites.google.com/view/riseoftherepublicdiscovery/устав-вар?authuser=0" target="_blank" class="btn secondary">📜 Устав ВАР (Внешняя ссылка)</a>
+        </div>
       </div>
       <div class="decree-list">
         ${DECREES_DATA.map(d => `<article class="decree"><h3>${d.title}</h3><p>${d.body}</p></article>`).join('')}
@@ -138,8 +147,8 @@ const VIEWS = {
     return `
       <section class="shell section">
         <div class="section-heading">
-          <p class="eyebrow">Локальная БД портала</p>
-          <h2>Данные пользователя и роли</h2>
+          <p class="eyebrow">Закрытые материалы</p>
+          <h2>База данных и ресурсы</h2>
         </div>
         <div class="db-grid">
           <article class="card"><h3>Ваш профиль</h3><dl>
@@ -148,15 +157,15 @@ const VIEWS = {
             <dt>Позывной</dt><dd>${user.callsign}</dd>
             <dt>Роль</dt><dd>${roleByKey(user.role).title}</dd>
           </dl></article>
-          <article class="card"><h3>Иерархия доступа</h3><ol class="role-list">
-            ${ROLES.map(r => `<li><b>${r.title}</b> — ${r.canEdit ? 'редактирование' : 'просмотр'}</li>`).join('')}
-          </ol></article>
+          <article class="card"><h3>Полезные ссылки</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+              ${EXTERNAL_LINKS.map(link => `<a href="${link.url}" target="_blank" class="btn ghost" style="text-align: left; padding: 10px 20px;">🔗 ${link.title}</a>`).join('')}
+            </div>
+          </article>
         </div>
       </section>
       <section class="shell section">
-        <div class="section-heading"><h2>Закрытые материалы</h2></div>
         <div class="content-grid">
-          <article class="card content-card"><h3>Документы</h3><p>${db.blocks.documents.body.replaceAll('\n', '<br>')}</p></article>
           <article class="card content-card"><h3>Иерархия</h3><p>${db.blocks.hierarchy.body.replaceAll('\n', '<br>')}</p></article>
           <article class="card content-card"><h3>Медали</h3><p>${db.blocks.medals.body.replaceAll('\n', '<br>')}</p></article>
           <article class="card content-card"><h3>Формы</h3><p>${db.blocks.forms.body.replaceAll('\n', '<br>')}</p></article>
@@ -166,27 +175,17 @@ const VIEWS = {
   command: () => {
     const user = currentUser();
     const role = user ? roleByKey(user.role) : null;
-    if (!role || (!role.canEdit && !role.canAssign)) return VIEWS.home();
+    if (!role || !role.canAssign) return VIEWS.home();
     return `
       <section class="shell section">
         <div class="section-heading">
           <p class="eyebrow">Кабинет КМД</p>
-          <h2>Управление порталом</h2>
+          <h2>Управление составом</h2>
         </div>
-        <div class="command-grid">
+        <div class="command-grid" style="grid-template-columns: 1fr;">
           <article class="card">
-            <div class="card-title"><h3>Выдача ролей</h3><span class="permission">${role.canAssign ? 'Разрешено' : 'Нет прав'}</span></div>
+            <div class="card-title"><h3>Список пользователей и выдача ролей</h3></div>
             <div id="usersList"></div>
-          </article>
-          <article class="card">
-            <div class="card-title"><h3>Редактор блоков</h3><span class="permission">${role.canEdit ? 'Разрешено' : 'Нет прав'}</span></div>
-            <label>Блок</label>
-            <select id="sectionSelect" onchange="updateEditor(this.value)">
-              ${Object.entries(db.blocks).map(([key, b]) => `<option value="${key}">${b.title}</option>`).join('')}
-            </select>
-            <label>Содержимое</label>
-            <textarea id="sectionEditor" rows="10" ${role.canEdit ? '' : 'disabled'}></textarea>
-            <button class="btn primary" onclick="saveBlock()" ${role.canEdit ? '' : 'disabled'}>Сохранить</button>
           </article>
         </div>
       </section>`;
@@ -205,7 +204,6 @@ function render() {
   
   if (currentView === 'command') {
     renderUsersList();
-    updateEditor($('#sectionSelect').value);
   }
 }
 
@@ -227,19 +225,8 @@ function updateUserRole(userId, newRole) {
   if (user) {
     user.role = newRole;
     saveDb();
+    alert(`Роль пользователя ${user.nickname} обновлена на ${roleByKey(newRole).title}`);
   }
-}
-
-function updateEditor(key) {
-  const editor = $('#sectionEditor');
-  if (editor) editor.value = db.blocks[key].body;
-}
-
-function saveBlock() {
-  const key = $('#sectionSelect').value;
-  db.blocks[key].body = $('#sectionEditor').value;
-  saveDb();
-  alert('Блок сохранен');
 }
 
 // Auth logic
