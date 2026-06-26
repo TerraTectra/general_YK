@@ -13,11 +13,17 @@
 <body>
 
   <header class="shell header">
-    <a class="brand" href="#top" aria-label="Ударный взвод CT"><span class="brand-mark">CT</span><span>Ударный взвод · Rise of Republic</span></a>
+    <a class="brand" href="#" aria-label="Ударный взвод CT"><span class="brand-mark">CT</span><span>Ударный взвод · Rise of Republic</span></a>
     <nav class="nav" aria-label="Навигация портала">
-      <a href="#recruit-path">Путь новичка</a>
-      <a class="auth-only" href="#database">База</a>
-      <a class="auth-only" href="#command">Кабинет КМД</a>
+      <button class="tab-btn active" data-tab="recruit">Путь новичка</button>
+      <button class="tab-btn auth-only" data-tab="decrees">Постановления</button>
+      <button class="tab-btn auth-only" data-tab="documents">Документы</button>
+      <button class="tab-btn auth-only" data-tab="other">Прочее</button>
+      <button class="tab-btn auth-only" data-tab="forms">Формы</button>
+      <button class="tab-btn auth-only" data-tab="database">База</button>
+      <button class="tab-btn auth-only" data-tab="command">Кабинет КМД</button>
+      <div class="nav-spacer"></div>
+      <button class="btn ghost" id="loginBtn" type="button">Войти</button>
       <button class="btn ghost" id="logoutBtn" type="button" hidden>Выйти</button>
     </nav>
   </header>
@@ -28,10 +34,6 @@
         <p class="eyebrow">Закрытый портал · Steam-идентификация · CT Legion</p>
         <h1>Рота ударных клонов</h1>
         <p class="lead" id="heroLead">Для неавторизованного бойца открыт только путь новичка. Зарегистрируйся через Steam, чтобы получить личный кабинет и доступ по роли.</p>
-        <div class="hero-actions">
-          <button class="btn primary" id="openSteamModal" type="button">Зарегистрироваться через Steam</button>
-          <a class="btn secondary" href="#recruit-path">Сначала изучить путь новичка</a>
-        </div>
       </div>
       <aside class="status-card" id="profileCard" aria-live="polite">
         <span class="status-dot"></span>
@@ -41,29 +43,62 @@
       </aside>
     </section>
 
-    <section class="shell section" id="recruit-path">
-      <div class="section-heading">
-        <p class="eyebrow">Открытый раздел</p>
-        <h2>Путь новичка</h2>
-        <p>Этот раздел виден всем до регистрации. Он объясняет, куда нажимать, что изучать и как войти в службу.</p>
-      </div>
-      <div class="path-grid">
-        <article class="card step"><span>01</span><h3>Познакомься с взводом</h3><p>Ударный взвод CT поддерживает порядок, дисциплину и безопасность корпуса на сервере Rise of Republic.</p></article>
-        <article class="card step"><span>02</span><h3>Изучи базовые каналы</h3><p>Следи за «#《📣》объявления-ук», общайся в «#《🚬》чат-ук», рапорты пиши в «#《📚》рапорты-ук», наказания — в «#《⚖️》наказания».</p></article>
-        <article class="card step"><span>03</span><h3>Подготовь рацию</h3><p>Рация УК: F4 → Рация → УК|CT. Пароль: 1687. Если канала нет — создай приватный УК|CT с этим паролем.</p></article>
-        <article class="card step"><span>04</span><h3>Зарегистрируйся</h3><p>Нажми регистрацию через Steam. На GitHub Pages это демо-режим: данные сохраняются в браузере как локальная база.</p></article>
-      </div>
-    </section>
+    <div class="tab-content">
+      <section class="shell section tab-panel active" id="recruit">
+        <div class="section-heading">
+          <p class="eyebrow">Открытый раздел</p>
+          <h2>Путь новичка</h2>
+          <p>Этот раздел виден всем до регистрации. Он объясняет, куда нажимать, что изучать и как войти в службу.</p>
+        </div>
+        <div class="path-grid">
+          <article class="card step"><span>01</span><h3>Познакомься с взводом</h3><p>Ударный взвод CT поддерживает порядок, дисциплину и безопасность корпуса на сервере Rise of Republic.</p></article>
+          <article class="card step"><span>02</span><h3>Изучи базовые каналы</h3><p>Следи за «#《📣》объявления-ук», общайся в «#《🚬》чат-ук», рапорты пиши в «#《📚》рапорты-ук», наказания — в «#《⚖️》наказания».</p></article>
+          <article class="card step"><span>03</span><h3>Подготовь рацию</h3><p>Рация УК: F4 → Рация → УК|CT. Пароль: 1687. Если канала нет — создай приватный УК|CT с этим паролем.</p></article>
+          <article class="card step"><span>04</span><h3>Зарегистрируйся</h3><p>Нажми кнопку «Войти» в правом верхнем углу. На GitHub Pages это демо-режим: данные сохраняются в браузере как локальная база.</p></article>
+        </div>
+      </section>
 
-    <section class="locked-only shell section lock-screen" id="lockedNotice">
-      <div class="lock-icon">🔒</div>
-      <h2>Остальная информация закрыта</h2>
-      <p>Постановления, документы, формы, кабинет КМД и выдача ролей откроются после регистрации и назначения роли.</p>
-      <button class="btn primary" id="openSteamModal2" type="button">Войти через Steam</button>
-    </section>
+      <section class="shell section tab-panel" id="decrees">
+        <div class="section-heading">
+          <p class="eyebrow">Правила и нормы</p>
+          <h2>Постановления Ударного взвода</h2>
+          <p>Обязательны к выполнению каждым бойцом Ударного Взвода.</p>
+        </div>
+        <div class="decree-list" id="decreesContent"></div>
+      </section>
 
-    <div class="auth-only" id="authorizedContent">
-      <section class="shell section" id="database">
+      <section class="shell section tab-panel" id="documents">
+        <div class="section-heading">
+          <p class="eyebrow">Библиотека</p>
+          <h2>Документы Ударного взвода</h2>
+          <p>Важные документы, которые необходимо прочесть и использовать в службе.</p>
+        </div>
+        <div class="doc-grid" id="documentsContent"></div>
+      </section>
+
+      <section class="shell section tab-panel" id="other">
+        <div class="section-heading">
+          <p class="eyebrow">Структура</p>
+          <h2>Прочее</h2>
+        </div>
+        <div class="two-columns">
+          <div>
+            <div class="panel"><h3>Приглашение в ЗКС SP</h3><p>Discord: <b>https://discord.gg/xBX7FXRku3</b></p><p>SP | ROTR · дата основания: август 2024 г.</p></div>
+            <div class="panel"><h3>Иерархия</h3><ul><li>Куратор — без приписки.</li><li>Командир УК — «CO - SP | CT».</li><li>Зам. Командира УК — «DEP- SP | CT».</li><li>Офицер УК — «OFC- SP | CT».</li><li>Солдат УК — «SOL - SP | CT».</li><li>Рекрут УК — «R - SP | CT».</li></ul></div>
+          </div>
+          <div class="panel medals" id="medalsContent"></div>
+        </div>
+      </section>
+
+      <section class="shell section tab-panel" id="forms">
+        <div class="section-heading">
+          <p class="eyebrow">Снаряжение</p>
+          <h2>Формы</h2>
+        </div>
+        <div class="forms-grid" id="formsContent"></div>
+      </section>
+
+      <section class="shell section tab-panel" id="database">
         <div class="section-heading">
           <p class="eyebrow">Локальная БД портала</p>
           <h2>Данные пользователя и роли</h2>
@@ -75,7 +110,7 @@
         </div>
       </section>
 
-      <section class="shell section" id="command">
+      <section class="shell section tab-panel" id="command">
         <div class="section-heading">
           <p class="eyebrow">Кабинет КМД</p>
           <h2>Управление порталом</h2>
@@ -97,8 +132,6 @@
           </article>
         </div>
       </section>
-
-      <section class="shell section" id="contentBlocks"></section>
     </div>
   </main>
 

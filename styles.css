@@ -41,9 +41,22 @@ a { color: inherit; }
   background: linear-gradient(135deg, var(--accent), #1746ff);
   box-shadow: 0 0 32px rgba(92, 200, 255, 0.45);
 }
-.nav { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.nav a { color: var(--muted); text-decoration: none; font-weight: 700; }
-.nav a:hover { color: var(--accent); }
+.nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nav-spacer { flex: 1; }
+.tab-btn {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--accent); border-color: var(--accent); }
+.tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.tab-btn.auth-only { display: none; }
+.tab-btn.auth-only.visible { display: inline-block; }
 
 .hero {
   min-height: 74vh;
@@ -93,6 +106,29 @@ a { color: inherit; }
 .card h3 { margin-top: 0; }
 .lock-screen { text-align: center; margin-bottom: 38px; }
 .lock-icon { font-size: 4rem; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+.panel h3 { margin-top: 0; }
+.panel ul { margin: 0; padding-left: 20px; }
+.panel ul li { margin-bottom: 8px; }
+.medals ul { list-style: none; padding: 0; }
+.medals ul li { margin-bottom: 8px; }
+.decree-list { display: grid; gap: 16px; }
+.decree { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.decree h3 { margin-top: 0; }
+.decree ul { padding-left: 20px; }
+.decree .note { color: var(--gold); font-style: italic; }
+.doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.doc-grid article { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.doc-grid h3 { margin-top: 0; }
+.forms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.form-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.form-card h3 { margin-top: 0; }
 
 dl { display: grid; grid-template-columns: 130px 1fr; gap: 8px 16px; }
 dt { color: var(--muted); }

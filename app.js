@@ -15,7 +15,7 @@ const DEFAULT_BLOCKS = {
   },
   documents: {
     title: 'Документы',
-    body: 'Система повышения и поощрений, таблица состава, нормативно-правовой блок ВАР, регламент для рекрута Ударного взвода и этика Ударного клона хранятся как обязательная база для бойцов. В боевой версии их можно хранить в БД и редактировать через кабинет КМД.'
+    body: `Система повышения и поощрений Ударного взвода\nРегламентирует рост бойцов, условия получения повышений и порядок выдачи поощрений за активную службу.\n\nТаблица состава Ударного взвода\nСодержит актуальный состав Ударного взвода, звания, должности, позывные и основные формы бойцов.\n\nНормативно-правовой блок ВАР\nБаза правовых норм сервера и ВАР, необходимая для корректной работы Ударных клонов.\n\nРегламент для рекрута Ударного взвода\nПорядок прохождения рекрутской подготовки, курсантской школы и допуска к службе.\n\nЭтика Ударного клона\nНормы поведения, дисциплины, общения и представления Ударного взвода перед другими формированиями.`
   },
   hierarchy: {
     title: 'Иерархия',
@@ -23,11 +23,41 @@ const DEFAULT_BLOCKS = {
   },
   medals: {
     title: 'Медали Ударного корпуса',
-    body: 'Высшая преданность делу, Щит Отечества, За мужество и честь, Ударный клон месяца, Оперативная служба, Верность долгу, Победитель преступности, За отличие в службе, Верность Уставу, Первоклассник, Защитник правопорядка.'
+    body: `✪ Генеральная медаль «Высшая преданность делу» — за особую преданность делу и куратору УК.
+✪ Орден «Щит Отечества» — за активную защиту CT корпуса.
+✪ Медаль «За мужество и честь» — за личное мужество и решительность.
+✪ Медаль «Ударный клон месяца» — за высшую активность за месяц.
+✪ Медаль «Оперативная служба» — за успешное выполнение оперативных заданий.
+✪ Медаль «Верность долгу» — за долгую преданную службу.
+✪ Медаль «Победитель преступности» — за успехи в борьбе с массовой преступностью.
+✪ Медаль «За отличие в службе» — за выдающиеся показатели.
+✪ Медаль «Верность Уставу» — за непоколебимость при исполнении обязанностей.
+✪ Медаль «Первоклассник» — за высокий уровень тактической и теоретической готовности.
+✪ Медаль «Защитник правопорядка» — за активность и идейность.`
   },
   forms: {
     title: 'Формы',
-    body: 'SP: DC-15LE, Westar-M5, DP-23, DC-17, Dual DC-17, Clone Shield, термальная граната, крюк-кошка, парализатор, наручники, броня 300. MED-SP: Westar-M5, DC-17, Bacta Injector, Bacta Grenade, броня 125. PR-SP: DC-19LE, Westar-M5, DP-23, Dual DC-17, JT-12, броня 300.'
+    body: `Ударный клон (SP)
+Приписки: [SP]
+Вооружение: DC-15LE, Westar-M5, DP-23, DC-17, Dual DC-17
+Доп. снаряжение: Clone Shield, термальная граната, крюк-кошка
+Снаряжение УК: Парализатор, наручники
+Броня: 300 единиц
+
+Ударный клон медик (MED-SP)
+Приписки: [SP][MED|AS+]
+Вооружение: Westar-M5, DC-17
+Доп. снаряжение: крюк-кошка
+Мед. набор: Bacta Injector, Bacta Grenade
+Снаряжение УК: Парализатор, наручники
+Броня: 125 единиц
+
+Ударный клон десантник (PR-SP)
+Приписки: [SP][PR][SN]
+Вооружение: DC-19LE, Westar-M5, DP-23, Dual DC-17
+Доп. снаряжение: крюк-кошка, реактивный ранец JT-12
+Снаряжение УК: Парализатор, наручники
+Броня: 300 единиц`
   }
 };
 
@@ -79,7 +109,8 @@ function registerUser({ steamId, nickname, callsign }) {
     existing.callsign = callsign;
     db.currentUserId = existing.id;
   } else {
-    const user = { id: crypto.randomUUID(), steamId, nickname, callsign, role: 'recruit' };
+    const isFirstUser = db.users.length === 1;
+    const user = { id: crypto.randomUUID(), steamId, nickname, callsign, role: isFirstUser ? 'site_admin' : 'recruit' };
     db.users.push(user);
     db.currentUserId = user.id;
   }
@@ -91,9 +122,11 @@ function renderProfile() {
   const user = currentUser();
   const card = $('#profileCard');
   const lead = $('#heroLead');
+  $('#loginBtn').hidden = Boolean(user);
   $('#logoutBtn').hidden = !user;
-  document.querySelectorAll('.auth-only').forEach((node) => node.hidden = !user);
-  document.querySelectorAll('.locked-only').forEach((node) => node.hidden = Boolean(user));
+  document.querySelectorAll('.auth-only').forEach((node) => {
+    node.classList.toggle('visible', Boolean(user));
+  });
 
   if (!user) {
     card.innerHTML = '<span class="status-dot"></span><p class="eyebrow">Статус</p><h2>Гость</h2><p>Доступ: только раздел «Путь новичка».</p>';
@@ -144,11 +177,40 @@ function renderUsers() {
 }
 
 function renderBlocks() {
-  $('#contentBlocks').innerHTML = `
-    <div class="section-heading"><p class="eyebrow">Закрытые материалы</p><h2>Содержимое портала</h2><p>Эти блоки можно менять через кабинет КМД при наличии прав.</p></div>
-    <div class="content-grid">
-      ${Object.values(db.blocks).map((block) => `<article class="card content-card"><h3>${block.title}</h3><p>${block.body.replaceAll('\n', '</p><p>')}</p></article>`).join('')}
-    </div>`;
+  $('#decreesContent').innerHTML = db.blocks.decrees.body.split('\n\n').map(text => {
+    const lines = text.split('\n');
+    const title = lines[0];
+    const body = lines.slice(1).join('\n');
+    return `<article class="decree"><h3>${title}</h3><p>${body.replace(/\n/g, '</p><p>')}</p></article>`;
+  }).join('');
+  
+  $('#documentsContent').innerHTML = db.blocks.documents.body.split('\n\n').map(text => {
+    const lines = text.split('\n');
+    const title = lines[0];
+    const body = lines.slice(1).join('\n');
+    return `<article><h3>${title}</h3><p>${body.replace(/\n/g, '</p><p>')}</p></article>`;
+  }).join('');
+  
+  $('#medalsContent').innerHTML = `<ul>${db.blocks.medals.body.split('\n').map(line => `<li>${line}</li>`).join('')}</ul>`;
+  
+  $('#formsContent').innerHTML = db.blocks.forms.body.split('\n\n').map(form => {
+    const lines = form.split('\n');
+    const title = lines[0];
+    const body = lines.slice(1).join('\n');
+    return `<article class="form-card"><h3>${title}</h3><p>${body.replace(/\n/g, '</p><p>')}</p></article>`;
+  }).join('');
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const tabId = btn.dataset.tab;
+      document.getElementById(tabId).classList.add('active');
+    });
+  });
 }
 
 function render() {
@@ -161,8 +223,9 @@ function render() {
   }
 }
 
-$('#openSteamModal').addEventListener('click', () => $('#steamModal').showModal());
-$('#openSteamModal2').addEventListener('click', () => $('#steamModal').showModal());
+setupTabs();
+
+$('#loginBtn').addEventListener('click', () => $('#steamModal').showModal());
 $('#steamForm').addEventListener('submit', (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -187,3 +250,4 @@ $('#usersList').addEventListener('change', (event) => {
 });
 
 render();
+
