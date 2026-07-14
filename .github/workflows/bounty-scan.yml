@@ -40,7 +40,7 @@ jobs:
               }
           ] | sort_by(-.usd)' boss-bounties-raw.json > boss-bounties.json
 
-          echo "Found $(jq length boss-bounties.json) open bounties worth at least $50"
+          echo "Found $(jq length boss-bounties.json) open bounties worth at least 50 USD"
           jq -r '.[] | "\(.usd) USD | \(.id) | \(.title) | \(.url)"' boss-bounties.json
 
       - name: Upload bounty catalog
