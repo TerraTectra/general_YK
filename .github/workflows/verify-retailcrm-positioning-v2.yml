@@ -1,0 +1,42 @@
+name: Verify RetailCRM SLA Journal Positioning
+
+on:
+  push:
+    branches:
+      - automation/verify-retailcrm-positioning-v2
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify public product pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          check() {
+            name="$1"; url="$2"
+            code=$(curl -L --silent --show-error --retry 6 --retry-delay 3 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0 Pages verification' -w '%{http_code}' -D "out/${name}.headers" -o "out/${name}.html" "$url" || true)
+            printf '%s\n' "$code" > "out/${name}.status"
+            test "$code" = 200
+          }
+          check main 'https://terratectra.github.io/autotools-hub/site/'
+          check incidents 'https://terratectra.github.io/autotools-hub/site/incidents.html'
+          grep -q 'Задержки становятся измеримым процессом' out/main.html
+          grep -q 'Больше, чем Telegram-уведомление' out/main.html
+          grep -q 'Не просто сигнал. Картина повторяющихся задержек.' out/incidents.html
+          grep -q 'id="top-status"' out/incidents.html
+          grep -q 'Повторяющиеся узкие места' out/incidents.html
+          grep -q 'Запустить пилот — 15 000 ₽' out/incidents.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retailcrm-positioning-v2-verification
+          path: out
+          retention-days: 1
