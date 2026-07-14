@@ -16,50 +16,61 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch partner pages
+      - name: Fetch partner contacts
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out/pages
+          mkdir -p out/sites
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
-          slugs=(business-i24 studiya-crm we-love-retail next-crm nadezhnyj-integrator unit-one iline-group radis fenix)
-          for slug in "${slugs[@]}"; do
-            curl -L --fail --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 -A "$ua" \
-              "https://www.retailcrm.ru/partnership/partners/${slug}" \
-              -o "out/pages/${slug}.html" || true
-          done
+          cat > out/targets.txt <<'EOF'
+          unit1.pro
+          fenixcrm.ru
+          iline-group.ru
+          studia-crm.ru
+          weloveretail.ru
+          business-i24.ru
+          crmnext.ru
+          radis.io
+          trustint.ru
+          EOF
+
+          fetch_host() {
+            host="$1"
+            safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
+            for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts'; do
+              url="https://${host}${path}"
+              code=$(curl -L --silent --show-error --connect-timeout 5 --max-time 10 -A "$ua" \
+                -w '%{http_code}' -o "out/sites/${safe}$(echo "$path" | tr '/' '_').html" "$url" || true)
+              if [ "$code" = 200 ]; then
+                printf '%s\t%s\n' "$host" "$url" >> out/fetched.tsv
+                break
+              fi
+            done
+          }
+          export -f fetch_host
+          export ua
+          xargs -P 9 -I{} bash -c 'fetch_host "$1"' _ {} < out/targets.txt
 
           python3 - <<'PY'
           from pathlib import Path
-          from urllib.parse import urlparse
-          from html import unescape
-          import json,re
-          blocked={'retailcrm.ru','www.retailcrm.ru','vk.com','t.me','youtube.com','www.youtube.com','rutube.ru','fonts.googleapis.com','fonts.gstatic.com'}
+          import re,json
           rows=[]
-          for p in Path('out/pages').glob('*.html'):
+          for p in Path('out/sites').glob('*.html'):
               html=p.read_text(errors='replace')
-              title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
-              title=' '.join(unescape(re.sub(r'<[^>]+>',' ',title_match.group(1))).split()) if title_match else p.stem
-              emails=sorted(set(re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
-              links=[]
-              for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
-                  href=unescape(href.strip())
-                  if not href.startswith('http'): continue
-                  host=urlparse(href).netloc.lower().split(':')[0]
-                  if host and host not in blocked and not host.endswith('.retailcrm.ru'):
-                      links.append(href)
-              rows.append({'slug':p.stem,'title':title,'emails':emails,'external_urls':sorted(set(links))})
-          Path('out/partners.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
-          for row in rows:
-              print('\n###',row['slug'],row['title'])
-              print('emails:',row['emails'])
-              print('urls:',row['external_urls'][:30])
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              emails=[e for e in emails if not any(x in e for x in ['example.com','sentry.io','wixpress.com','cloudflare.com','google.com'])]
+              if emails:
+                  rows.append({'file':p.name,'emails':emails})
+          Path('out/contacts.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          all_emails=sorted({e for row in rows for e in row['emails']})
+          Path('out/all-emails.txt').write_text('\n'.join(all_emails))
+          print('\n'.join(all_emails))
           PY
 
-      - name: Upload catalog
+      - name: Upload contacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retailcrm-prospects-fast
+          name: retailcrm-contacts
           path: out
           retention-days: 1
