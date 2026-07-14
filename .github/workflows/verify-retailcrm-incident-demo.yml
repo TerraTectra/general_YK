@@ -1,0 +1,38 @@
+name: Verify RetailCRM Incident Demo
+
+on:
+  push:
+    branches:
+      - automation/verify-retailcrm-incident-demo
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public page
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          url='https://terratectra.github.io/autotools-hub/site/incidents.html'
+          code=$(curl -L --silent --show-error --retry 5 --retry-delay 3 --connect-timeout 10 --max-time 30 -A 'Mozilla/5.0 Pages verification' -w '%{http_code}' -D out/headers.txt -o out/page.html "$url" || true)
+          printf '%s\n' "$code" > out/status.txt
+          grep -o '<title[^>]*>.*</title>' out/page.html | head -1 > out/title.txt || true
+          printf 'status=%s\n' "$code"
+          cat out/title.txt || true
+          test "$code" = '200'
+          grep -q 'Журнал нарушений — RetailCRM SLA Guard' out/page.html
+          grep -q 'id="download"' out/page.html
+          grep -q 'Запустить пилот — 15 000 ₽' out/page.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retailcrm-incident-demo-verification
+          path: out
+          retention-days: 1
