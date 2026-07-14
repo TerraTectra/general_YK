@@ -25,49 +25,43 @@ jobs:
           slugs=(business-i24 studiya-crm we-love-retail next-crm nadezhnyj-integrator unit-one iline-group radis fenix)
 
           for slug in "${slugs[@]}"; do
-            url="https://www.retailcrm.ru/partnership/partners/${slug}"
-            curl -L --fail --silent --show-error --retry 3 -A "$ua" "$url" -o "out/pages/${slug}.html" || true
+            curl -L --fail --silent --show-error --retry 3 -A "$ua" \
+              "https://www.retailcrm.ru/partnership/partners/${slug}" \
+              -o "out/pages/${slug}.html" || true
           done
 
           python3 - <<'PY'
-          from bs4 import BeautifulSoup
           from pathlib import Path
           from urllib.parse import urlparse
+          from html import unescape
           import json,re
-          root=Path('out/pages')
-          rows=[]
           blocked={'retailcrm.ru','www.retailcrm.ru','vk.com','t.me','youtube.com','www.youtube.com','rutube.ru'}
-          for p in root.glob('*.html'):
+          rows=[]
+          for p in Path('out/pages').glob('*.html'):
               html=p.read_text(errors='replace')
-              soup=BeautifulSoup(html,'html.parser')
-              title=soup.title.get_text(' ',strip=True) if soup.title else p.stem
+              title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+              title=re.sub(r'<[^>]+>',' ',title_match.group(1)).strip() if title_match else p.stem
+              title=' '.join(unescape(title).split())
               emails=sorted(set(re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
               links=[]
-              for a in soup.find_all('a',href=True):
-                  href=a['href'].strip()
-                  if href.startswith('http'):
-                      host=urlparse(href).netloc.lower().split(':')[0]
-                      if host and host not in blocked and not host.endswith('.retailcrm.ru'):
-                          links.append(href)
+              for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
+                  href=unescape(href.strip())
+                  if not href.startswith('http'): continue
+                  host=urlparse(href).netloc.lower().split(':')[0]
+                  if host and host not in blocked and not host.endswith('.retailcrm.ru'):
+                      links.append(href)
               rows.append({'slug':p.stem,'title':title,'emails':emails,'external_urls':sorted(set(links))})
           Path('out/partners.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          hosts=[]
           for row in rows:
               print('\n###',row['slug'],row['title'])
               print('emails:',row['emails'])
               print('urls:',row['external_urls'][:20])
-          PY
-
-          python3 - <<'PY'
-          import json
-          from urllib.parse import urlparse
-          rows=json.load(open('out/partners.json'))
-          hosts=[]
-          for row in rows:
               for u in row['external_urls']:
                   h=urlparse(u).netloc.lower().split(':')[0]
                   if h.startswith('www.'): h=h[4:]
                   if h and h not in hosts: hosts.append(h)
-          open('out/hosts.txt','w').write('\n'.join(hosts))
+          Path('out/hosts.txt').write_text('\n'.join(hosts))
           PY
 
           while IFS= read -r host; do
@@ -75,7 +69,8 @@ jobs:
             safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
             for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts'; do
               url="https://${host}${path}"
-              code=$(curl -L --silent --show-error --retry 2 --connect-timeout 10 --max-time 30 -A "$ua" -w '%{http_code}' -o "out/sites/${safe}$(echo "$path"|tr '/' '_').html" "$url" || true)
+              code=$(curl -L --silent --show-error --retry 2 --connect-timeout 10 --max-time 30 -A "$ua" \
+                -w '%{http_code}' -o "out/sites/${safe}$(echo "$path"|tr '/' '_').html" "$url" || true)
               [ "$code" = 200 ] && break
             done
           done < out/hosts.txt
@@ -85,6 +80,7 @@ jobs:
           cat out/all-emails.txt || true
 
       - name: Upload catalog
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: retailcrm-prospects
