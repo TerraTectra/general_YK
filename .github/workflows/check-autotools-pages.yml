@@ -1,0 +1,67 @@
+name: Check autotools Pages
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect Pages and deployment workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          ua='Mozilla/5.0 GitHub-Pages-status-check'
+
+          curl -L --silent --show-error --retry 3 -A "$ua" \
+            -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/TerraTectra/autotools-hub/pages' \
+            -D out/pages.headers -o out/pages.json || true
+
+          curl -L --silent --show-error --retry 3 -A "$ua" \
+            -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/TerraTectra/autotools-hub/actions/workflows/retailcrm-demo-pages.yml/runs?branch=main&per_page=5' \
+            -D out/runs.headers -o out/runs.json || true
+
+          curl -L --silent --show-error --retry 3 -A "$ua" \
+            -D out/site.headers -o out/site.html \
+            'https://terratectra.github.io/autotools-hub/' || true
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          def load(path):
+              try: return json.loads(Path(path).read_text())
+              except Exception: return None
+          pages=load('out/pages.json')
+          runs=load('out/runs.json')
+          result={
+              'pages': pages,
+              'latest_runs': [],
+              'site_title': None,
+              'site_has_demo': False,
+          }
+          if isinstance(runs,dict):
+              for run in runs.get('workflow_runs',[])[:5]:
+                  result['latest_runs'].append({k:run.get(k) for k in ['id','status','conclusion','event','head_sha','html_url','created_at','updated_at']})
+          html=Path('out/site.html').read_text(errors='replace') if Path('out/site.html').exists() else ''
+          m=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+          if m: result['site_title']=' '.join(re.sub(r'<[^>]+>',' ',m.group(1)).split())
+          result['site_has_demo']='RetailCRM SLA Guard' in html and 'id="demo"' in html
+          Path('out/summary.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
+          print(json.dumps(result,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autotools-pages-status
+          path: out
+          retention-days: 1
