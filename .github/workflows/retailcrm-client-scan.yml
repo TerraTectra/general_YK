@@ -1,0 +1,199 @@
+name: RetailCRM Client Scan
+
+on:
+  push:
+    branches:
+      - automation/retailcrm-client-scan
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discover official RetailCRM cases, marketplace modules and client contacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/pages out/sites
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+
+          curl -L --silent --show-error --retry 3 --connect-timeout 10 --max-time 30 -A "$ua" \
+            'https://www.retailcrm.ru/robots.txt' -o out/robots.txt || true
+          for url in \
+            'https://www.retailcrm.ru/sitemap.xml' \
+            'https://retailcrm.ru/sitemap.xml' \
+            'https://www.retailcrm.ru/sitemap_index.xml'; do
+            file="out/$(echo "$url" | sed 's#https\?://##;s#[/:]#_#g')"
+            curl -L --silent --show-error --retry 3 --connect-timeout 10 --max-time 45 -A "$ua" "$url" -o "$file" || true
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse
+          import re, json
+
+          seeds=[]
+          for p in Path('out').glob('*sitemap*'):
+              text=p.read_text(errors='replace')
+              seeds += re.findall(r'<loc>\s*(https?://[^<]+)\s*</loc>',text,re.I)
+          robots=Path('out/robots.txt').read_text(errors='replace') if Path('out/robots.txt').exists() else ''
+          seeds += re.findall(r'(?im)^sitemap:\s*(https?://\S+)',robots)
+          seeds=list(dict.fromkeys(seeds))
+          Path('out/sitemap-seeds.json').write_text(json.dumps(seeds,ensure_ascii=False,indent=2))
+          print('SITEMAP SEEDS',len(seeds))
+          print('\n'.join(seeds[:50]))
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.request import Request,urlopen
+          import re,json,time
+
+          seeds=json.loads(Path('out/sitemap-seeds.json').read_text())
+          seen=set(); urls=[]; queue=list(seeds)
+          for _ in range(4):
+              nxt=[]
+              for u in queue[:60]:
+                  if u in seen: continue
+                  seen.add(u)
+                  try:
+                      req=Request(u,headers={'User-Agent':'Mozilla/5.0 Chrome/150'})
+                      data=urlopen(req,timeout=20).read().decode('utf-8','replace')
+                  except Exception:
+                      continue
+                  locs=re.findall(r'<loc>\s*(https?://[^<]+)\s*</loc>',data,re.I)
+                  for loc in locs:
+                      if loc.endswith('.xml') or 'sitemap' in loc.lower(): nxt.append(loc)
+                      else: urls.append(loc)
+              queue=nxt
+              if not queue: break
+          urls=list(dict.fromkeys(urls))
+          Path('out/all-urls.json').write_text(json.dumps(urls,ensure_ascii=False,indent=2))
+          print('DISCOVERED URLS',len(urls))
+          PY
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse
+          import json,re
+          urls=json.loads(Path('out/all-urls.json').read_text())
+          scored=[]
+          keys=('case','cases','client','clients','customer','customers','blog','marketplace','modules','module','integration','integrations','partners','partnership','history','success')
+          for u in urls:
+              low=u.lower()
+              score=sum(k in low for k in keys)
+              if score: scored.append((score,u))
+          scored=sorted(scored,key=lambda x:(-x[0],x[1]))[:350]
+          Path('out/candidate-urls.txt').write_text('\n'.join(u for _,u in scored))
+          print('CANDIDATES',len(scored))
+          print('\n'.join(u for _,u in scored[:80]))
+          PY
+
+          n=0
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            n=$((n+1)); [ "$n" -gt 220 ] && break
+            safe=$(printf '%04d' "$n")
+            curl -L --silent --show-error --retry 1 --connect-timeout 8 --max-time 25 -A "$ua" \
+              "$url" -o "out/pages/${safe}.html" || true
+            printf '%s\t%s\n' "$safe" "$url" >> out/page-map.tsv
+          done < out/candidate-urls.txt
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse, urljoin
+          from html import unescape
+          import re,json
+
+          page_map={}
+          if Path('out/page-map.tsv').exists():
+              for line in Path('out/page-map.tsv').read_text(errors='replace').splitlines():
+                  if '\t' in line:
+                      k,u=line.split('\t',1); page_map[k]=u
+          rows=[]; external=[]
+          terms=('sla','зависш','просроч','telegram','телеграм','статус','заказ','order','контрол','уведом','эскалац')
+          for p in Path('out/pages').glob('*.html'):
+              html=p.read_text(errors='replace')
+              url=page_map.get(p.stem,'')
+              title=' '.join(re.sub(r'<[^>]+>',' ',(re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S) or ['',''])[1]).split())
+              text=' '.join(re.sub(r'<script.*?</script>|<style.*?</style>|<[^>]+>',' ',html,flags=re.I|re.S).split())
+              hits={t:len(re.findall(re.escape(t),text,re.I)) for t in terms if re.search(re.escape(t),text,re.I)}
+              links=[]
+              for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
+                  href=unescape(href.strip())
+                  full=urljoin(url,href)
+                  if not full.startswith('http'): continue
+                  host=urlparse(full).netloc.lower().split(':')[0]
+                  if host and not host.endswith('retailcrm.ru') and not host.endswith('simla.com'):
+                      if not any(x in host for x in ('google.','yandex.','vk.com','youtube.','t.me','rutube.','schema.org','fonts.','apple.com')):
+                          links.append(full)
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              row={'url':url,'title':title,'hits':hits,'emails':emails,'external_links':sorted(set(links))[:20]}
+              if hits or emails or links:
+                  rows.append(row)
+              for link in row['external_links']:
+                  external.append(link)
+          rows.sort(key=lambda r:(-sum(r['hits'].values()),r['title']))
+          Path('out/pages-summary.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          hosts=[]
+          for link in external:
+              host=urlparse(link).netloc.lower().split(':')[0]
+              if host.startswith('www.'): host=host[4:]
+              if host and host not in hosts: hosts.append(host)
+          Path('out/external-hosts.txt').write_text('\n'.join(hosts[:120]))
+          print('SUMMARY ROWS',len(rows),'EXTERNAL HOSTS',len(hosts))
+          print(json.dumps(rows[:30],ensure_ascii=False,indent=2))
+          PY
+
+          fetch_host() {
+            host="$1"
+            safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
+            for scheme in https http; do
+              for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts' '/company/contacts' '/pages/contacts'; do
+                url="${scheme}://${host}${path}"
+                code=$(curl -L --silent --show-error --retry 1 --connect-timeout 7 --max-time 18 -A "$ua" \
+                  -w '%{http_code}' -o "out/sites/${safe}_${scheme}$(echo "$path"|tr '/' '_').html" "$url" || true)
+                if [ "$code" = 200 ]; then
+                  printf '%s\t%s\n' "$host" "$url" >> out/fetched-sites.tsv
+                  return 0
+                fi
+              done
+            done
+          }
+          export -f fetch_host
+          export ua
+          if [ -s out/external-hosts.txt ]; then
+            head -80 out/external-hosts.txt | xargs -P 10 -I{} bash -c 'fetch_host "$1"' _ {}
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          excluded=('example.com','sentry.io','wixpress.com','cloudflare.com','google.com','yandex.ru','tilda.cc','retailcrm.ru','simla.com')
+          rows=[]
+          for p in Path('out/sites').glob('*.html'):
+              html=p.read_text(errors='replace')
+              title=' '.join(re.sub(r'<[^>]+>',' ',(re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S) or ['',''])[1]).split())
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              emails=[e for e in emails if not any(x in e for x in excluded) and not e.endswith(('.png','.jpg','.svg','.webp'))]
+              telegram=sorted(set(re.findall(r'https?://t\.me/[A-Za-z0-9_+/-]+',html,re.I)))
+              if emails or telegram:
+                  rows.append({'file':p.name,'title':title,'emails':emails,'telegram':telegram})
+          Path('out/client-contacts.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          print('CLIENT CONTACTS')
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload research
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailcrm-client-scan
+          path: out
+          retention-days: 1
