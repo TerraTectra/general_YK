@@ -16,16 +16,15 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch partner pages and public contacts
+      - name: Fetch partner pages
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out/pages out/sites
+          mkdir -p out/pages
           ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
           slugs=(business-i24 studiya-crm we-love-retail next-crm nadezhnyj-integrator unit-one iline-group radis fenix)
-
           for slug in "${slugs[@]}"; do
-            curl -L --fail --silent --show-error --retry 3 -A "$ua" \
+            curl -L --fail --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 -A "$ua" \
               "https://www.retailcrm.ru/partnership/partners/${slug}" \
               -o "out/pages/${slug}.html" || true
           done
@@ -35,13 +34,12 @@ jobs:
           from urllib.parse import urlparse
           from html import unescape
           import json,re
-          blocked={'retailcrm.ru','www.retailcrm.ru','vk.com','t.me','youtube.com','www.youtube.com','rutube.ru'}
+          blocked={'retailcrm.ru','www.retailcrm.ru','vk.com','t.me','youtube.com','www.youtube.com','rutube.ru','fonts.googleapis.com','fonts.gstatic.com'}
           rows=[]
           for p in Path('out/pages').glob('*.html'):
               html=p.read_text(errors='replace')
               title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
-              title=re.sub(r'<[^>]+>',' ',title_match.group(1)).strip() if title_match else p.stem
-              title=' '.join(unescape(title).split())
+              title=' '.join(unescape(re.sub(r'<[^>]+>',' ',title_match.group(1))).split()) if title_match else p.stem
               emails=sorted(set(re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
               links=[]
               for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
@@ -52,37 +50,16 @@ jobs:
                       links.append(href)
               rows.append({'slug':p.stem,'title':title,'emails':emails,'external_urls':sorted(set(links))})
           Path('out/partners.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
-          hosts=[]
           for row in rows:
               print('\n###',row['slug'],row['title'])
               print('emails:',row['emails'])
-              print('urls:',row['external_urls'][:20])
-              for u in row['external_urls']:
-                  h=urlparse(u).netloc.lower().split(':')[0]
-                  if h.startswith('www.'): h=h[4:]
-                  if h and h not in hosts: hosts.append(h)
-          Path('out/hosts.txt').write_text('\n'.join(hosts))
+              print('urls:',row['external_urls'][:30])
           PY
-
-          while IFS= read -r host; do
-            [ -z "$host" ] && continue
-            safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
-            for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts'; do
-              url="https://${host}${path}"
-              code=$(curl -L --silent --show-error --retry 2 --connect-timeout 10 --max-time 30 -A "$ua" \
-                -w '%{http_code}' -o "out/sites/${safe}$(echo "$path"|tr '/' '_').html" "$url" || true)
-              [ "$code" = 200 ] && break
-            done
-          done < out/hosts.txt
-
-          grep -RhoEi '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' out/sites out/pages | sort -u > out/all-emails.txt || true
-          echo 'Public emails:'
-          cat out/all-emails.txt || true
 
       - name: Upload catalog
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: retailcrm-prospects
+          name: retailcrm-prospects-fast
           path: out
           retention-days: 1
