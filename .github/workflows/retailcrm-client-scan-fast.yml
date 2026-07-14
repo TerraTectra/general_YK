@@ -1,0 +1,125 @@
+name: RetailCRM Client Scan Fast
+
+on:
+  push:
+    branches:
+      - automation/retailcrm-client-scan
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parallel case and contact discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/cases out/sites
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+          curl -L --fail --silent --show-error --retry 3 -A "$ua" \
+            'https://www.retailcrm.ru/sitemap.xml' -o out/sitemap.xml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          xml=Path('out/sitemap.xml').read_text(errors='replace')
+          urls=re.findall(r'<loc>\s*(https?://[^<]+)',xml,re.I)
+          cases=[u for u in urls if '/blog/cases/' in u]
+          Path('out/case-urls.txt').write_text('\n'.join(cases))
+          print('CASES',len(cases))
+          PY
+
+          export ua
+          fetch_case() {
+            idx="$1"; url="$2"
+            safe=$(printf '%04d' "$idx")
+            curl -L --silent --show-error --retry 2 --connect-timeout 7 --max-time 20 -A "$ua" "$url" -o "out/cases/${safe}.html" || true
+            printf '%s\t%s\n' "$safe" "$url" > "out/cases/${safe}.url"
+          }
+          export -f fetch_case
+          awk '{print NR "\t" $0}' out/case-urls.txt | xargs -P 16 -n 2 bash -c 'fetch_case "$1" "$2"' _
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse,urljoin
+          from html import unescape
+          import re,json
+          blocked=('retailcrm.ru','simla.com','google.','yandex.','vk.com','youtube.','youtu.be','t.me','rutube.','schema.org','fonts.','apple.com','twitter.com','facebook.com')
+          rows=[]; hosts=[]
+          for p in Path('out/cases').glob('*.html'):
+              key=p.stem
+              up=Path('out/cases',key+'.url')
+              if not up.exists(): continue
+              _,url=up.read_text(errors='replace').split('\t',1)
+              url=url.strip(); html=p.read_text(errors='replace')
+              title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+              title=' '.join(re.sub(r'<[^>]+>',' ',title_match.group(1) if title_match else '').split())
+              text=' '.join(unescape(re.sub(r'<script.*?</script>|<style.*?</style>|<[^>]+>',' ',html,flags=re.I|re.S)).split())
+              links=[]
+              for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
+                  full=urljoin(url,unescape(href.strip()))
+                  if not full.startswith('http'): continue
+                  host=urlparse(full).netloc.lower().split(':')[0]
+                  if host and not any(host==b or host.endswith('.'+b) or b in host for b in blocked):
+                      links.append(full)
+                      h=host[4:] if host.startswith('www.') else host
+                      if h not in hosts: hosts.append(h)
+              metrics=[]
+              for pattern in (r'\d[\d\s ]*\+?\s*(?:заказ|заяв)',r'в\s+\d+(?:[,.]\d+)?\s*раз',r'на\s+\d+%'):
+                  metrics += re.findall(pattern,text,re.I)[:10]
+              pain_terms=('заказ','статус','менеджер','обработ','контрол','срок','уведом','просроч','завис','потер','скорост','автомат','ошиб','нагруз')
+              hits={t:len(re.findall(t,text,re.I)) for t in pain_terms if re.search(t,text,re.I)}
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              rows.append({'url':url,'title':title,'metrics':metrics[:20],'hits':hits,'emails':emails,'external_links':sorted(set(links))[:30],'excerpt':text[:1200]})
+          rows.sort(key=lambda r:(-sum(r['hits'].values()),-len(r['external_links']),r['title']))
+          Path('out/cases.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          Path('out/client-hosts.txt').write_text('\n'.join(hosts[:120]))
+          print('TOP CASES')
+          print(json.dumps(rows[:40],ensure_ascii=False,indent=2))
+          print('HOSTS',len(hosts))
+          PY
+
+          fetch_site() {
+            host="$1"; safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
+            for scheme in https http; do
+              for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts' '/company/contacts' '/pages/contacts' '/support' '/cooperation'; do
+                url="${scheme}://${host}${path}"
+                code=$(curl -L --silent --show-error --retry 1 --connect-timeout 6 --max-time 15 -A "$ua" -w '%{http_code}' -o "out/sites/${safe}_${scheme}$(echo "$path"|tr '/' '_').html" "$url" || true)
+                if [ "$code" = 200 ]; then printf '%s\t%s\n' "$host" "$url" > "out/sites/${safe}.url"; return 0; fi
+              done
+            done
+          }
+          export -f fetch_site
+          if [ -s out/client-hosts.txt ]; then head -100 out/client-hosts.txt | xargs -P 20 -I{} bash -c 'fetch_site "$1"' _ {}; fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          excluded=('example.com','sentry.io','wixpress.com','cloudflare.com','google.com','yandex.ru','tilda.cc','retailcrm.ru','simla.com','mail.ru')
+          rows=[]
+          for p in Path('out/sites').glob('*.html'):
+              html=p.read_text(errors='replace')
+              title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+              title=' '.join(re.sub(r'<[^>]+>',' ',title_match.group(1) if title_match else '').split())
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              emails=[e for e in emails if not any(x in e for x in excluded) and not e.endswith(('.png','.jpg','.svg','.webp','.js','.css'))]
+              telegram=sorted(set(re.findall(r'https?://t\.me/[A-Za-z0-9_+/-]+',html,re.I)))
+              if emails or telegram: rows.append({'file':p.name,'title':title,'emails':emails,'telegram':telegram})
+          Path('out/client-contacts.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          print('CONTACTS')
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload research
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailcrm-client-scan-fast
+          path: out
+          retention-days: 1
