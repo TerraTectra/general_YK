@@ -16,22 +16,50 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p out
+          mkdir -p out/sites out/deployment-statuses
           ua='Mozilla/5.0 GitHub-Pages-status-check'
+          api='https://api.github.com/repos/TerraTectra/autotools-hub'
 
-          curl -L --silent --show-error --retry 3 -A "$ua" \
-            -H 'Accept: application/vnd.github+json' \
-            'https://api.github.com/repos/TerraTectra/autotools-hub/pages' \
-            -D out/pages.headers -o out/pages.json || true
+          get_json() {
+            name="$1"; url="$2"
+            curl -L --silent --show-error --retry 3 -A "$ua" \
+              -H 'Accept: application/vnd.github+json' \
+              -D "out/${name}.headers" -o "out/${name}.json" "$url" || true
+          }
 
-          curl -L --silent --show-error --retry 3 -A "$ua" \
-            -H 'Accept: application/vnd.github+json' \
-            'https://api.github.com/repos/TerraTectra/autotools-hub/actions/workflows/retailcrm-demo-pages.yml/runs?branch=main&per_page=5' \
-            -D out/runs.headers -o out/runs.json || true
+          get_json pages "$api/pages"
+          get_json workflow-runs "$api/actions/workflows/retailcrm-demo-pages.yml/runs?branch=main&per_page=10"
+          get_json all-runs "$api/actions/runs?branch=main&per_page=30"
+          get_json deployments "$api/deployments?environment=github-pages&per_page=10"
 
-          curl -L --silent --show-error --retry 3 -A "$ua" \
-            -D out/site.headers -o out/site.html \
-            'https://terratectra.github.io/autotools-hub/' || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          try: deployments=json.loads(Path('out/deployments.json').read_text())
+          except Exception: deployments=[]
+          for deployment in deployments if isinstance(deployments,list) else []:
+              did=deployment.get('id')
+              statuses=deployment.get('statuses_url')
+              if did and statuses:
+                  Path('out/status-urls.tsv').open('a').write(f'{did}\t{statuses}\n')
+          PY
+
+          if [ -s out/status-urls.tsv ]; then
+            while IFS=$'\t' read -r did url; do
+              curl -L --silent --show-error --retry 3 -A "$ua" \
+                -H 'Accept: application/vnd.github+json' \
+                "$url" -o "out/deployment-statuses/${did}.json" || true
+            done < out/status-urls.tsv
+          fi
+
+          for path in '' 'index.html' 'site/' 'retailcrm-sla-guard/' 'demo/'; do
+            safe=$(printf '%s' "${path:-root}" | tr '/.' '__')
+            curl -L --silent --show-error --retry 3 -A "$ua" \
+              -H 'Cache-Control: no-cache' \
+              -D "out/sites/${safe}.headers" \
+              -o "out/sites/${safe}.html" \
+              "https://terratectra.github.io/autotools-hub/${path}?v=acfd02c8e7719488ce638d650590071da312b742" || true
+          done
 
           python3 - <<'PY'
           from pathlib import Path
@@ -39,21 +67,33 @@ jobs:
           def load(path):
               try: return json.loads(Path(path).read_text())
               except Exception: return None
-          pages=load('out/pages.json')
-          runs=load('out/runs.json')
+          def compact_run(run):
+              return {k:run.get(k) for k in ['id','name','path','status','conclusion','event','head_sha','html_url','created_at','updated_at']}
           result={
-              'pages': pages,
-              'latest_runs': [],
-              'site_title': None,
-              'site_has_demo': False,
+              'pages': load('out/pages.json'),
+              'workflow_runs': [],
+              'all_recent_runs': [],
+              'deployments': load('out/deployments.json'),
+              'deployment_statuses': {},
+              'site_paths': {},
           }
-          if isinstance(runs,dict):
-              for run in runs.get('workflow_runs',[])[:5]:
-                  result['latest_runs'].append({k:run.get(k) for k in ['id','status','conclusion','event','head_sha','html_url','created_at','updated_at']})
-          html=Path('out/site.html').read_text(errors='replace') if Path('out/site.html').exists() else ''
-          m=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
-          if m: result['site_title']=' '.join(re.sub(r'<[^>]+>',' ',m.group(1)).split())
-          result['site_has_demo']='RetailCRM SLA Guard' in html and 'id="demo"' in html
+          wr=load('out/workflow-runs.json')
+          if isinstance(wr,dict):
+              result['workflow_runs']=[compact_run(x) for x in wr.get('workflow_runs',[])[:10]]
+          ar=load('out/all-runs.json')
+          if isinstance(ar,dict):
+              result['all_recent_runs']=[compact_run(x) for x in ar.get('workflow_runs',[])[:30]]
+          for p in Path('out/deployment-statuses').glob('*.json'):
+              result['deployment_statuses'][p.stem]=load(p)
+          for p in Path('out/sites').glob('*.html'):
+              html=p.read_text(errors='replace')
+              m=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+              result['site_paths'][p.stem]={
+                  'bytes':len(html.encode()),
+                  'title':' '.join(re.sub(r'<[^>]+>',' ',m.group(1)).split()) if m else None,
+                  'has_demo':'RetailCRM SLA Guard' in html and 'id="demo"' in html,
+                  'looks_404':'404' in html[:3000] or 'Page not found' in html[:3000],
+              }
           Path('out/summary.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
           print(json.dumps(result,ensure_ascii=False,indent=2))
           PY
