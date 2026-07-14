@@ -1,0 +1,40 @@
+name: Frantic Inspect
+
+on:
+  push:
+    branches:
+      - automation/bounty-scan
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Frantic bounty pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for id in 107 109 114; do
+            curl -L --fail --silent --show-error \
+              --retry 3 \
+              -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36' \
+              -D "out/${id}.headers.txt" \
+              "https://gofrantic.com/bounties/${id}" \
+              -o "out/${id}.html"
+            echo "=== ${id}: $(wc -c < out/${id}.html) bytes ==="
+            grep -Eoi '<title>[^<]+|__NEXT_DATA__|/api/[^" ]+|claim[^<]{0,120}|acceptance[^<]{0,200}' "out/${id}.html" | head -80 || true
+          done
+
+      - name: Upload pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: frantic-pages
+          path: out
+          retention-days: 1
