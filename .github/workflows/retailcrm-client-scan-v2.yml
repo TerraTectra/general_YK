@@ -1,0 +1,149 @@
+name: RetailCRM Client Scan V2
+
+on:
+  push:
+    branches:
+      - automation/retailcrm-client-scan
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crawl official cases and relevant Marketplace cards
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/cases out/modules out/sites
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+          curl -L --fail --silent --show-error --retry 3 --connect-timeout 10 --max-time 40 -A "$ua" \
+            'https://www.retailcrm.ru/sitemap.xml' -o out/sitemap.xml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          xml=Path('out/sitemap.xml').read_text(errors='replace')
+          urls=re.findall(r'<loc>\s*(https?://[^<]+)\s*</loc>',xml,re.I)
+          cases=[u for u in urls if '/blog/cases/' in u]
+          module_terms=('telegram','order','status','sla','notification','control','manager','deadline','task','reminder','notify','workflow','analytics','report','monitor','alert','zakaz','status','uvedom','kontrol','otchet','analitik','zadach')
+          modules=[u for u in urls if '/marketplace/' in u and any(t in u.lower() for t in module_terms)]
+          Path('out/case-urls.txt').write_text('\n'.join(cases))
+          Path('out/module-urls.txt').write_text('\n'.join(modules))
+          print('CASES',len(cases)); print('\n'.join(cases))
+          print('MODULES',len(modules)); print('\n'.join(modules))
+          PY
+
+          fetch_list() {
+            list="$1"; folder="$2"; n=0
+            while IFS= read -r url; do
+              [ -z "$url" ] && continue
+              n=$((n+1)); safe=$(printf '%04d' "$n")
+              curl -L --silent --show-error --retry 2 --connect-timeout 8 --max-time 25 -A "$ua" \
+                "$url" -o "out/${folder}/${safe}.html" || true
+              printf '%s\t%s\n' "$safe" "$url" >> "out/${folder}-map.tsv"
+            done < "$list"
+          }
+          fetch_list out/case-urls.txt cases
+          fetch_list out/module-urls.txt modules
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse,urljoin
+          from html import unescape
+          import re,json
+
+          def mapping(path):
+              d={}
+              p=Path(path)
+              if p.exists():
+                  for line in p.read_text(errors='replace').splitlines():
+                      if '\t' in line:
+                          k,u=line.split('\t',1); d[k]=u
+              return d
+
+          blocked=('retailcrm.ru','simla.com','google.','yandex.','vk.com','youtube.','youtu.be','t.me','rutube.','schema.org','fonts.','apple.com','twitter.com','facebook.com')
+          def parse(folder,mapfile):
+              mp=mapping(mapfile); rows=[]
+              for p in Path('out',folder).glob('*.html'):
+                  html=p.read_text(errors='replace'); url=mp.get(p.stem,'')
+                  title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+                  title=' '.join(re.sub(r'<[^>]+>',' ',title_match.group(1) if title_match else '').split())
+                  h1_match=re.search(r'<h1[^>]*>(.*?)</h1>',html,re.I|re.S)
+                  h1=' '.join(re.sub(r'<[^>]+>',' ',h1_match.group(1) if h1_match else '').split())
+                  text=' '.join(unescape(re.sub(r'<script.*?</script>|<style.*?</style>|<[^>]+>',' ',html,flags=re.I|re.S)).split())
+                  links=[]
+                  for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
+                      full=urljoin(url,unescape(href.strip()))
+                      if not full.startswith('http'): continue
+                      host=urlparse(full).netloc.lower().split(':')[0]
+                      if host and not any(host==b or host.endswith('.'+b) or b in host for b in blocked): links.append(full)
+                  emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+                  pain_terms=('заказ','статус','менеджер','обработ','контрол','срок','уведом','просроч','завис','потер','скорост','автомат','ошиб')
+                  hits={t:len(re.findall(t,text,re.I)) for t in pain_terms if re.search(t,text,re.I)}
+                  rows.append({'url':url,'title':title,'h1':h1,'emails':emails,'external_links':sorted(set(links))[:25],'hits':hits,'excerpt':text[:800]})
+              return rows
+
+          cases=parse('cases','out/cases-map.tsv')
+          modules=parse('modules','out/modules-map.tsv')
+          cases.sort(key=lambda r:(-len(r['external_links']),-sum(r['hits'].values()),r['title']))
+          modules.sort(key=lambda r:(-sum(r['hits'].values()),r['title']))
+          Path('out/cases.json').write_text(json.dumps(cases,ensure_ascii=False,indent=2))
+          Path('out/modules.json').write_text(json.dumps(modules,ensure_ascii=False,indent=2))
+          hosts=[]
+          for row in cases:
+              for link in row['external_links']:
+                  host=urlparse(link).netloc.lower().split(':')[0]
+                  if host.startswith('www.'): host=host[4:]
+                  if host and host not in hosts: hosts.append(host)
+          Path('out/client-hosts.txt').write_text('\n'.join(hosts))
+          print('TOP CASES')
+          print(json.dumps(cases[:30],ensure_ascii=False,indent=2))
+          print('TOP MODULES')
+          print(json.dumps(modules[:40],ensure_ascii=False,indent=2))
+          print('CLIENT HOSTS',len(hosts),hosts)
+          PY
+
+          fetch_host() {
+            host="$1"; safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
+            for scheme in https http; do
+              for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts' '/company/contacts' '/pages/contacts' '/support'; do
+                url="${scheme}://${host}${path}"
+                code=$(curl -L --silent --show-error --retry 1 --connect-timeout 7 --max-time 20 -A "$ua" -w '%{http_code}' -o "out/sites/${safe}_${scheme}$(echo "$path"|tr '/' '_').html" "$url" || true)
+                if [ "$code" = 200 ]; then printf '%s\t%s\n' "$host" "$url" >> out/fetched-sites.tsv; return 0; fi
+              done
+            done
+          }
+          export -f fetch_host; export ua
+          if [ -s out/client-hosts.txt ]; then head -80 out/client-hosts.txt | xargs -P 10 -I{} bash -c 'fetch_host "$1"' _ {}; fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          excluded=('example.com','sentry.io','wixpress.com','cloudflare.com','google.com','yandex.ru','tilda.cc','retailcrm.ru','simla.com','mail.ru')
+          rows=[]
+          for p in Path('out/sites').glob('*.html'):
+              html=p.read_text(errors='replace')
+              title_match=re.search(r'<title[^>]*>(.*?)</title>',html,re.I|re.S)
+              title=' '.join(re.sub(r'<[^>]+>',' ',title_match.group(1) if title_match else '').split())
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              emails=[e for e in emails if not any(x in e for x in excluded) and not e.endswith(('.png','.jpg','.svg','.webp','.js','.css'))]
+              telegram=sorted(set(re.findall(r'https?://t\.me/[A-Za-z0-9_+/-]+',html,re.I)))
+              if emails or telegram: rows.append({'file':p.name,'title':title,'emails':emails,'telegram':telegram})
+          Path('out/client-contacts.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          print('CLIENT CONTACTS')
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload research
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailcrm-client-scan-v2
+          path: out
+          retention-days: 1
