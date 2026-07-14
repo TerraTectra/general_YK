@@ -29,15 +29,13 @@ jobs:
           queries=(
             'is:issue is:open label:bounty created:>=2026-01-01'
             'is:issue is:open label:"💰 bounty" created:>=2026-01-01'
-            'is:issue is:open label:"bounty 💰" created:>=2026-01-01'
-            'is:issue is:open in:title "[$" created:>=2026-01-01'
             'is:issue is:open in:title "bounty" "$" updated:>=2026-05-01'
           )
 
           : > out/raw.jsonl
           for q in "${queries[@]}"; do
             echo "Searching: $q"
-            gh api -X GET --paginate /search/issues \
+            gh api -X GET /search/issues \
               -f q="$q" \
               -f sort=updated \
               -f order=desc \
@@ -49,7 +47,8 @@ jobs:
             echo '[]' > out/candidates.json
           else
             jq -s '
-              unique_by(.html_url)
+              map(select(type == "object" and .html_url != null))
+              | unique_by(.html_url)
               | map(select(.pull_request == null))
               | map({
                   url: .html_url,
@@ -57,8 +56,8 @@ jobs:
                   number: .number,
                   title: .title,
                   body: (.body // ""),
-                  labels: [.labels[].name],
-                  comments: .comments,
+                  labels: [(.labels // [])[] | .name],
+                  comments: (.comments // 0),
                   created_at: .created_at,
                   updated_at: .updated_at,
                   user: .user.login
