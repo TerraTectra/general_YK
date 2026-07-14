@@ -1,0 +1,22 @@
+name: Verify Public amoCRM Sales Page
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify published page
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://terratectra.github.io/autotools-hub/site/amocrm.html'
+          body="$(curl --fail --silent --show-error --location --retry 6 --retry-delay 10 "$url")"
+          grep -Fq '<title>amoCRM Lead SLA Guard — пилот за 15 000 ₽</title>' <<<"$body"
+          grep -Fq '7 500 ₽ предоплата' <<<"$body"
+          grep -Fq 'https://t.me/tahioff' <<<"$body"
+          grep -Fq 'mailto:nikidom123@gmail.com' <<<"$body"
+          grep -Fq 'White-label' <<<"$body"
+          printf 'Verified %s (%s bytes)\n' "$url" "${#body}"
