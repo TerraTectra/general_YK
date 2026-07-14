@@ -1,0 +1,30 @@
+name: Verify Public UMI Portfolio
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify published page
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://terratectra.github.io/autotools-hub/site/umi.html'
+          for attempt in 1 2 3 4 5; do
+            code="$(curl -L --silent --show-error --output page.html --write-out '%{http_code}' "$url" || true)"
+            if [ "$code" = '200' ]; then break; fi
+            sleep $((attempt * 5))
+          done
+          test "$code" = '200'
+          grep -F 'TerraTectra Automation — разработка для UMI.CMS' page.html
+          grep -F 'Telegram Order Status' page.html
+          grep -F 'UMI.CMS → СДЭК' page.html
+          grep -F 'Самозанятый НПД' page.html
+          grep -F 'https://t.me/tahioff' page.html
+          grep -F 'nikidom123@gmail.com' page.html
