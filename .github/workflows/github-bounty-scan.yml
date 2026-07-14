@@ -37,33 +37,38 @@ jobs:
           : > out/raw.jsonl
           for q in "${queries[@]}"; do
             echo "Searching: $q"
-            gh api --paginate search/issues \
+            gh api -X GET --paginate /search/issues \
               -f q="$q" \
               -f sort=updated \
               -f order=desc \
               -f per_page=100 \
-              --jq '.items[]' >> out/raw.jsonl || true
+              --jq '.items[]?' >> out/raw.jsonl || true
           done
 
-          jq -s '
-            unique_by(.html_url)
-            | map(select(.pull_request == null))
-            | map({
-                url: .html_url,
-                repository_url: .repository_url,
-                number: .number,
-                title: .title,
-                body: (.body // ""),
-                labels: [.labels[].name],
-                comments: .comments,
-                created_at: .created_at,
-                updated_at: .updated_at,
-                user: .user.login
-              })
-            | sort_by(.updated_at)
-            | reverse
-          ' out/raw.jsonl > out/candidates.json
+          if [[ ! -s out/raw.jsonl ]]; then
+            echo '[]' > out/candidates.json
+          else
+            jq -s '
+              unique_by(.html_url)
+              | map(select(.pull_request == null))
+              | map({
+                  url: .html_url,
+                  repository_url: .repository_url,
+                  number: .number,
+                  title: .title,
+                  body: (.body // ""),
+                  labels: [.labels[].name],
+                  comments: .comments,
+                  created_at: .created_at,
+                  updated_at: .updated_at,
+                  user: .user.login
+                })
+              | sort_by(.updated_at)
+              | reverse
+            ' out/raw.jsonl > out/candidates.json
+          fi
 
+          echo "Candidates: $(jq length out/candidates.json)"
           jq -r '.[] | "\(.updated_at) | \(.repository_url | split("/")[-2:] | join("/"))#\(.number) | \(.title) | comments=\(.comments)"' out/candidates.json | head -200
 
       - name: Upload search results
