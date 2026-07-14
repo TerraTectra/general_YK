@@ -1,0 +1,110 @@
+name: RetailCRM Contact Scan 2
+
+on:
+  push:
+    branches:
+      - automation/retailcrm-contact-scan-2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve official partner sites and contacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/partners out/sites
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/150 Safari/537.36'
+          slugs=(a-t-agency delomatika erbauer-corp)
+
+          for slug in "${slugs[@]}"; do
+            curl -L --silent --show-error --retry 3 --connect-timeout 10 --max-time 30 -A "$ua" \
+              "https://www.retailcrm.ru/partnership/partners/${slug}" \
+              -o "out/partners/${slug}.html" || true
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlparse
+          from html import unescape
+          import json,re
+          blocked={
+            'www.retailcrm.ru','retailcrm.ru','account.retailcrm.ru','sso.retailcrm.ru',
+            'docs.retailcrm.ru','t.me','max.ru','youtube.com','www.youtube.com',
+            'vk.com','vkvideo.ru','google.com','fonts.googleapis.com','fonts.gstatic.com',
+            'schema.org','reestr.digital.gov.ru','play.google.com','apps.apple.com'
+          }
+          rows=[]
+          for p in Path('out/partners').glob('*.html'):
+              html=p.read_text(errors='replace')
+              urls=[]
+              for href in re.findall(r'href=["\']([^"\']+)',html,re.I):
+                  href=unescape(href.strip())
+                  if not href.startswith('http'): continue
+                  host=urlparse(href).netloc.lower().split(':')[0]
+                  if host and host not in blocked and not host.endswith('.retailcrm.ru'):
+                      urls.append(href)
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              rows.append({'slug':p.stem,'partner_emails':emails,'external_urls':sorted(set(urls))})
+          Path('out/partners.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          hosts=[]
+          for row in rows:
+              print('\n###',row['slug'])
+              print('emails',row['partner_emails'])
+              print('urls',row['external_urls'])
+              for u in row['external_urls']:
+                  h=urlparse(u).netloc.lower().split(':')[0]
+                  if h.startswith('www.'): h=h[4:]
+                  if h and h not in hosts: hosts.append(h)
+          Path('out/hosts.txt').write_text('\n'.join(hosts))
+          PY
+
+          fetch_host() {
+            host="$1"
+            safe=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9._-')
+            for scheme in https http; do
+              for path in '' '/contacts' '/contact' '/kontakty' '/about/contacts' '/company/contacts'; do
+                url="${scheme}://${host}${path}"
+                code=$(curl -L --silent --show-error --retry 1 --connect-timeout 8 --max-time 20 -A "$ua" \
+                  -w '%{http_code}' -o "out/sites/${safe}_${scheme}$(echo "$path"|tr '/' '_').html" "$url" || true)
+                if [ "$code" = 200 ]; then
+                  printf '%s\t%s\n' "$host" "$url" >> out/fetched.tsv
+                  return 0
+                fi
+              done
+            done
+          }
+          export -f fetch_host
+          export ua
+          if [ -s out/hosts.txt ]; then
+            xargs -P 8 -I{} bash -c 'fetch_host "$1"' _ {} < out/hosts.txt
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,json
+          rows=[]
+          excluded=('example.com','sentry.io','wixpress.com','cloudflare.com','google.com','yandex.ru','tilda.cc')
+          for p in Path('out/sites').glob('*.html'):
+              html=p.read_text(errors='replace')
+              emails=sorted(set(x.lower() for x in re.findall(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',html,re.I)))
+              emails=[e for e in emails if not any(x in e for x in excluded)]
+              telegram=sorted(set(re.findall(r'https?://t\.me/[A-Za-z0-9_+/-]+',html,re.I)))
+              if emails or telegram:
+                  rows.append({'file':p.name,'emails':emails,'telegram':telegram})
+          Path('out/contacts.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2))
+          print('\nCONTACTS')
+          print(json.dumps(rows,ensure_ascii=False,indent=2))
+          PY
+
+      - name: Upload contacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailcrm-contact-scan-2
+          path: out
+          retention-days: 1
