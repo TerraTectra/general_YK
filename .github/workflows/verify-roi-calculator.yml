@@ -1,0 +1,33 @@
+name: Verify RetailCRM ROI Calculator
+
+on:
+  push:
+    branches:
+      - automation/verify-roi-calculator
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify public calculator
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://terratectra.github.io/autotools-hub/site/calculator.html'
+          for attempt in {1..12}; do
+            code=$(curl -L --silent --show-error --max-time 20 -w '%{http_code}' -o calculator.html "$url" || true)
+            if [ "$code" = 200 ] && grep -q 'Сколько стоят задержки заказов' calculator.html && grep -q 'grossPerOrder=check\*margin' calculator.html && grep -q 'Обсудить пилот письменно' calculator.html; then
+              echo "Verified $url"
+              exit 0
+            fi
+            echo "Attempt $attempt: HTTP $code; waiting for Pages deployment"
+            sleep 10
+          done
+          echo 'Public calculator did not expose the expected content'
+          exit 1
