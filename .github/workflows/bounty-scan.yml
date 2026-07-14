@@ -1,0 +1,50 @@
+name: Bounty Scan
+
+on:
+  push:
+    branches:
+      - automation/bounty-scan
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Boss.dev bounties
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --connect-timeout 15 \
+            --max-time 60 \
+            https://api.boss.dev/rpc/issues/gh/unsolved \
+            -o boss-bounties-raw.json
+
+          jq '[
+            .[]
+            | select(.status == "open")
+            | select((.usd // 0) >= 50)
+            | {
+                id: .hId,
+                title: .title,
+                url: .url,
+                usd: .usd,
+                status: .status
+              }
+          ] | sort_by(-.usd)' boss-bounties-raw.json > boss-bounties.json
+
+          echo "Found $(jq length boss-bounties.json) open bounties worth at least $50"
+          jq -r '.[] | "\(.usd) USD | \(.id) | \(.title) | \(.url)"' boss-bounties.json
+
+      - name: Upload bounty catalog
+        uses: actions/upload-artifact@v4
+        with:
+          name: boss-bounties
+          path: |
+            boss-bounties.json
+            boss-bounties-raw.json
+          retention-days: 1
