@@ -1,0 +1,22 @@
+name: Verify Public CRM Audit Page
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/verify-crm-audit.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify published page
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://terratectra.github.io/autotools-hub/site/audit.html'
+          body="$(curl --fail --silent --show-error --location --retry 5 --retry-delay 2 "$url")"
+          grep -F 'CRM/SLA-аудит за 5 000 ₽' <<<"$body"
+          grep -F '2 500 ₽ предоплата' <<<"$body"
+          grep -F '1 рабочий день' <<<"$body"
+          grep -F 'https://t.me/tahioff' <<<"$body"
+          grep -F 'nikidom123@gmail.com' <<<"$body"
