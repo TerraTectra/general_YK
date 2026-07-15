@@ -1,0 +1,36 @@
+name: Verify Public UMI CDEK Client Page
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify published page
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://terratectra.github.io/autotools-hub/site/umi-cdek-client.html'
+          for attempt in 1 2 3 4 5; do
+            code="$(curl -L --silent --show-error --output page.html --write-out '%{http_code}' "$url" || true)"
+            if [ "$code" = '200' ]; then break; fi
+            sleep $((attempt * 5))
+          done
+          test "$code" = '200'
+          grep -F 'СДЭК в оформлении заказа UMI.CMS.' page.html
+          grep -F 'Базовая интеграция' page.html
+          grep -F 'Расширенная интеграция' page.html
+          grep -F 'Скопировать список вопросов' page.html
+          grep -F 'Финальную цену и договор с клиентом определяет его веб-студия' page.html
+          ! grep -F 'mailto:' page.html
+          ! grep -F 't.me/' page.html
+          ! grep -F '@tahioff' page.html
+          ! grep -F 'nikidom123' page.html
+          ! grep -F '20 000' page.html
+          ! grep -F '35 000' page.html
+          ! grep -F '55 000' page.html
