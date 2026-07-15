@@ -26,7 +26,7 @@ jobs:
           grep -F 'Базовая интеграция' page.html
           grep -F 'Расширенная интеграция' page.html
           grep -F 'Скопировать список вопросов' page.html
-          grep -F 'Финальную цену и договор с клиентом определяет его веб-студия' page.html
+          grep -F 'отправьте заполненный список своей веб-студии' page.html
           ! grep -F 'mailto:' page.html
           ! grep -F 't.me/' page.html
           ! grep -F '@tahioff' page.html
